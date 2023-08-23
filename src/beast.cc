@@ -24,6 +24,28 @@ using tcp = boost::asio::ip::tcp; // from <boost/asio/ip/tcp.hpp>
 
 using namespace ec_prv;
 
+
+struct Config {
+  const uint64_t* highwayhash_key;
+
+  void cleanup() noexcept {
+    if (highwayhash_key != nullptr) {delete highwayhash_key;}
+  }
+
+  static std::optional<Config> env_config();
+};
+
+auto Config::env_config() -> std::optional<Config> {
+  const char* highwayhash_key_inp = std::getenv("EC_PRV_URL_SHORTENER__HIGHWAYHASH_KEY");
+  if (nullptr == highwayhash_key_inp) {
+    std::cerr << "Missing highwayhash key\n";
+    return {};
+  }
+  const uint64_t* hhkey = url_shortening::create_highwayhash_key(highwayhash_key_inp);
+  return Config{hhkey};
+}
+
+
 // Return a reasonable mime type based on the extension of a file.
 beast::string_view mime_type(beast::string_view path) {
   using beast::iequals;
@@ -108,7 +130,7 @@ std::string path_cat(beast::string_view base, beast::string_view path) {
 template <class Body, class Allocator>
 http::message_generator
 handle_request(beast::string_view doc_root,
-	       http::request<Body, http::basic_fields<Allocator>> &&req) {
+	       http::request<Body, http::basic_fields<Allocator>> &&req, Config& cfg_) {
   // Returns a bad request response
   auto const bad_request = [&req](beast::string_view why) {
     http::response<http::string_body> res{http::status::bad_request,
@@ -161,6 +183,8 @@ handle_request(beast::string_view doc_root,
     std::cout << "should serve static files here\n";
   } else if (auto p = url_shortening::parse_out_request_str(req.target()); p) {
     std::cout << "Found url slug: " << *p << std::endl;
+    auto s = url_shortening::generate_shortened_url(*p, cfg_.highwayhash_key);
+    std::cout << "Shortened version : " << s << std::endl;
   }
 
   // Build the path to the requested file
@@ -187,7 +211,6 @@ handle_request(beast::string_view doc_root,
   // Respond to HEAD request
   if (req.method() == http::verb::head) {
     http::response<http::empty_body> res{http::status::ok, req.version()};
-    res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
     res.set(http::field::content_type, mime_type(path));
     res.content_length(size);
     res.keep_alive(req.keep_alive());
@@ -198,7 +221,6 @@ handle_request(beast::string_view doc_root,
   http::response<http::file_body> res{
       std::piecewise_construct, std::make_tuple(std::move(body)),
       std::make_tuple(http::status::ok, req.version())};
-  res.set(http::field::server, BOOST_BEAST_VERSION_STRING);
   res.set(http::field::content_type, mime_type(path));
   res.content_length(size);
   res.keep_alive(req.keep_alive());
@@ -221,12 +243,13 @@ class session : public std::enable_shared_from_this<session> {
   std::shared_ptr<std::string const> doc_root_;
   std::vector<http::message_generator> response_queue_;
   std::optional<http::request_parser<http::string_body>> parser_;
+  Config& cfg_;
 
 public:
   // Take ownership of the stream
   session(tcp::socket &&socket,
-          std::shared_ptr<std::string const> const &doc_root)
-      : stream_(std::move(socket)), doc_root_(doc_root) {
+          std::shared_ptr<std::string const> const &doc_root, Config& cfg)
+    : stream_(std::move(socket)), doc_root_(doc_root), cfg_(cfg) {
     static_assert(queue_limit > 0, "Must have a positive queue limit");
     response_queue_.reserve(queue_limit);
   }
@@ -268,7 +291,7 @@ public:
       return fail(ec, "read");
 
     // Send the response
-    queue_write(handle_request(*doc_root_, parser_->release()));
+    queue_write(handle_request(*doc_root_, parser_->release(), cfg_));
 
     if (response_queue_.size() < queue_limit) {
       do_read();
@@ -331,11 +354,12 @@ class listener : public std::enable_shared_from_this<listener> {
   net::io_context &ioc_;
   tcp::acceptor acceptor_;
   std::shared_ptr<std::string const> doc_root_;
+  Config& cfg_;
 
 public:
   listener(net::io_context &ioc, tcp::endpoint endpoint,
-           std::shared_ptr<std::string const> const &doc_root)
-      : ioc_(ioc), acceptor_(net::make_strand(ioc)), doc_root_(doc_root) {
+           std::shared_ptr<std::string const> const &doc_root, Config& cfg)
+    : ioc_(ioc), acceptor_(net::make_strand(ioc)), doc_root_(doc_root), cfg_(cfg) {
     beast::error_code ec;
 
     // Open the acceptor
@@ -385,7 +409,7 @@ private:
       fail(ec, "accept");
     } else {
       // Create the session and run it
-      std::make_shared<session>(std::move(socket), doc_root_)->run();
+      std::make_shared<session>(std::move(socket), doc_root_, cfg_)->run();
     }
 
     // Accept another connection
@@ -407,20 +431,29 @@ int main(int argc, char *argv[]) {
   auto const port = static_cast<unsigned short>(std::atoi(argv[2]));
   auto const doc_root = std::make_shared<std::string>(argv[3]);
 
+  // get config
+  auto cfg = Config::env_config();
+  if (!cfg) {
+    std::cerr << "Failed to get config from environment variables\n";
+    return EXIT_FAILURE;
+  }
+
   // The io_context is required for all I/O
   net::io_context ioc{};
 
   // Create and launch a listening port
-  std::make_shared<listener>(ioc, tcp::endpoint{address, port}, doc_root)
+  std::make_shared<listener>(ioc, tcp::endpoint{address, port}, doc_root, *cfg)
       ->run();
 
   // Capture SIGINT, SIGTERM, etc. to do a clean shutdown
   net::signal_set signals(ioc, SIGINT, SIGTERM);
   signals.async_wait([&](const boost::system::error_code &error,
-                         int signal_number) -> void { ioc.stop(); });
+                         int signal_number) -> void { ioc.stop(); cfg->cleanup(); });
 
   // Run the I/O service on a single thread
   ioc.run();
 
+  cfg->cleanup();
+  
   return EXIT_SUCCESS;
 }
