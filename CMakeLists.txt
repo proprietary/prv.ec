@@ -30,7 +30,7 @@ target_link_libraries(url_shortener_proto PUBLIC grpc++ absl::base absl::absl_lo
 
 add_executable(rpc_server src/rpc_server.cc)
 target_compile_features(rpc_server PUBLIC cxx_std_20)
-target_link_libraries(rpc_server PUBLIC grpc++ absl::base absl::config absl::log absl::absl_log url_shortening url_shortener_proto)
+target_link_libraries(rpc_server PUBLIC grpc++ absl::base absl::config absl::log absl::absl_log absl::log_streamer absl::check absl::absl_check absl::log_flags absl::log_globals absl::log_initialize absl::log_entry absl::synchronization absl::strings url_shortening url_shortener_proto)
 
 # TODO(zds): put logic to generate gRPC/protobufs in CMake
 # https://github.com/grpc/grpc/blob/v1.57.0/examples/cpp/route_guide/CMakeLists.txt

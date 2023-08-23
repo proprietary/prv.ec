@@ -43,8 +43,7 @@ namespace ec_prv {
 	  //<< db_path << "\" : " << s.ToString();
 	  throw std::runtime_error{s.ToString()};
 	}
-	auto dst = std::make_shared<ShortenedUrlsDatabase>(ShortenedUrlsDatabase{db, db_path});
-	return dst;
+	return std::shared_ptr<ShortenedUrlsDatabase>(new ShortenedUrlsDatabase{db, db_path});
       }
 
       ShortenedUrlsDatabase::~ShortenedUrlsDatabase() {
