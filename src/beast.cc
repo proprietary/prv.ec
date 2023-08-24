@@ -181,7 +181,7 @@ handle_request(beast::string_view doc_root,
   } else if (req.target().starts_with("/static/")) {
     // serve static files
     std::cout << "should serve static files here\n";
-  } else if (auto p = url_shortening::parse_out_request_str(req.target()); p) {
+  } else if (auto p = url_shortening::parse_out_request_str(req.target()); p.length() > 0) {
     std::cout << "Found url slug: " << *p << std::endl;
     auto s = url_shortening::generate_shortened_url(*p, cfg_.highwayhash_key);
     std::cout << "Shortened version : " << s << std::endl;

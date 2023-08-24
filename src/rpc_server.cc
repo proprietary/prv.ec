@@ -1,8 +1,10 @@
+#include <glog/logging.h>
 #include <absl/strings/str_format.h>
 #include <grpcpp/grpcpp.h>
 #include <grpcpp/health_check_service_interface.h>
 #include <grpcpp/ext/proto_server_reflection_plugin.h>
 
+#include <grpcpp/support/status.h>
 #include <string>
 #include <iostream>
 #include <memory>
@@ -59,14 +61,27 @@ namespace {
 
     ::grpc::Status ShortenUrl(::grpc::ServerContext* context, const ::ec_prv::ShortenUrlRequest* request, ::ec_prv::ShortenedUrlResponse* response) override {
       auto generated = ec_prv::url_shortener::url_shortening::generate_shortened_url(request->long_url(), cfg_->highwayhash_key);
-      shortened_urls_database_->put(generated, request->long_url());
+      auto res = shortened_urls_database_->put(generated, request->long_url());
+      if (std::holds_alternative<::ec_prv::url_shortener::db::UrlShorteningDbError>(res)) {
+	return ::grpc::Status(::grpc::StatusCode::ABORTED, "Fail");
+      }
       response->set_long_url(request->long_url());
       response->set_short_url(generated);
       return ::grpc::Status::OK;
     }
     ::grpc::Status LookupUrl(::grpc::ServerContext* context, const ::ec_prv::UrlLookupRequest* request, ::ec_prv::UrlLookupResponse* response) override {
-      std::string answer = shortened_urls_database_->get(request->short_url());
-      response->set_long_url(answer);
+      auto answer = shortened_urls_database_->get(request->short_url());
+      if (std::holds_alternative<::ec_prv::url_shortener::db::UrlShorteningDbError>(answer)) {
+	auto err = std::get_if<::ec_prv::url_shortener::db::UrlShorteningDbError>(&answer);
+	if (*err == ::ec_prv::url_shortener::db::UrlShorteningDbError::NotFound)  {
+	  return ::grpc::Status(::grpc::StatusCode::NOT_FOUND, "Not Found");
+	}
+	LOG(ERROR) << "lookup failed in database for slug: " << request->short_url();
+	return ::grpc::Status(::grpc::StatusCode::ABORTED, "Fail");
+      }
+      const std::string* long_url = std::get_if<std::string>(&answer);
+      CHECK(long_url != nullptr);
+      response->set_long_url(*long_url);
       response->set_short_url(request->short_url());
       return ::grpc::Status::OK;
     }

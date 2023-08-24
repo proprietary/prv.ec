@@ -13,9 +13,25 @@ namespace ec_prv {
     namespace url_shortening {
       const static std::string_view alphabet = "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
       static constexpr std::size_t max_url_slug = 1000;
-      static constexpr auto shortened_url_len = 7;
+      static constexpr auto shortened_url_len = 7; // char length of the slug returned that keys a shortened URL
 
-      auto parse_out_request_str(std::string_view src) -> std::optional<std::string_view> {
+      auto is_ok_request_path(std::string_view src) -> bool {
+	if (src.length() > max_url_slug) {
+	  return false;
+	}
+	for (int i = 0; i < src.length(); ++i) {
+	  int j = 0;
+	  while (j < alphabet.length() && src[i] != alphabet[j]) {
+	    ++j;
+	  }
+	  if (j == alphabet.length()) {
+	    return false;
+	  }
+	}
+	return true;
+      }
+
+      auto parse_out_request_str(std::string_view src) -> std::string_view {
 	if (src.size() > max_url_slug) {
 	  // too long
 	  return {};
@@ -24,8 +40,8 @@ namespace ec_prv {
 	if (*it != '/') {
 	  return {};
 	}
-	auto b = it;
 	++it;
+	auto b = it;
 	for (; it != src.end(); ++it) {
 	  bool included = false;
 	  for (auto j = 0; j < alphabet.size(); ++j) {
