@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <filesystem>
 
 namespace ec_prv {
 namespace url_shortener {
@@ -15,6 +16,10 @@ struct ReadOnlyAppConfig {
   uint16_t grpc_service_port{50051};
 
   uint16_t web_server_port{60022};
+
+  std::filesystem::path static_file_doc_root;
+
+  const char *static_file_request_path_prefix{"/static/"};
 
   // This is the base URL for your URL shortening service, after which
   // the shortened URL slug is appended. For example,

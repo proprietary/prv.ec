@@ -1,5 +1,6 @@
 #include <chrono>
 #include <folly/Memory.h>
+#include <folly/ThreadLocal.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/GlobalExecutor.h>
 #include <folly/io/async/EventBaseManager.h>
@@ -50,9 +51,14 @@ public:
   MyRequestHandlerFactory(
 			  const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig *app_state,
 			  std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db)
-      : app_state_(app_state), db_(db) {}
-  void onServerStart(folly::EventBase *evb) noexcept override {}
-  void onServerStop() noexcept override {}
+    : app_state_(app_state), db_(db) {
+  }
+  void onServerStart(folly::EventBase *evb) noexcept override {
+    static_file_cache_.reset(new ::ec_prv::url_shortener::web::StaticFileCache{});
+  }
+  void onServerStop() noexcept override {
+    static_file_cache_.reset();
+  }
   proxygen::RequestHandler *
   onRequest(proxygen::RequestHandler *request_handler,
             proxygen::HTTPMessage *msg) noexcept override {
@@ -60,20 +66,18 @@ public:
         msg->getMethod() == proxygen::HTTPMethod::GET) {
       // serve home page
       DLOG(INFO) << "Detected route \"/\". Serving home page.";
-      // TODO: adapt StaticHandler to serve a specific file
-      return new NotFoundHandler();
+      // use StaticHandler to serve a specific file
+      return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_.get(), app_state_->static_file_doc_root, "index.html");
     } else if (msg->getPath().starts_with("/static/") &&
                msg->getMethod() == proxygen::HTTPMethod::GET) {
       // serve static files
       DLOG(INFO) << "Route \"static\" found. Serving static files.";
-      return new ::ec_prv::url_shortener::web::StaticHandler();
+      return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_.get(), app_state_->static_file_doc_root, {}); 
     } // else if
       // (ec_prv::url_shortener::url_shortening::is_ok_request_path(msg->getPath())
       // && msg->getMethod() == proxygen::HTTPMethod::GET) {
-    if (std::string_view parsed =
-            ec_prv::url_shortener::url_shortening::parse_out_request_str(
-                msg->getPath());
-        parsed.length() > 0) {
+    std::string_view parsed = ec_prv::url_shortener::url_shortening::parse_out_request_str(msg->getPathAsStringPiece());
+    if (parsed.length() > 0 || (msg->getPathAsStringPiece() == "/" && msg->getMethod() == proxygen::HTTPMethod::POST)) {
       return new ::ec_prv::url_shortener::web::UrlShortenerApiRequestHandler(
           db_.get() /* TODO: fix unsafe pointer passing */,
           app_state_->highwayhash_key);
@@ -85,6 +89,8 @@ private:
   const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig
       *app_state_; // TODO: make this a folly::ThreadLocalPtr
   std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db_;
+  // folly::ThreadLocalPtr<::ec_prv::url_shortener::web::StaticFileCache> static_file_cache_{nullptr};
+  std::unique_ptr<::ec_prv::url_shortener::web::StaticFileCache> static_file_cache_{nullptr};
 };
 
 } // namespace

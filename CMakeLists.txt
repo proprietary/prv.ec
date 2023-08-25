@@ -20,6 +20,7 @@ find_package(Threads)
 
 add_library(app_config src/app_config.h src/app_config.cc)
 target_sources(app_config PUBLIC FILE_SET hdrs TYPE HEADERS FILES src/app_config.h)
+target_compile_features(app_config PUBLIC cxx_std_20)
 
 add_library(url_shortening)
 target_sources(url_shortening PUBLIC src/url_shortening.cc src/db.cc src/db.h)

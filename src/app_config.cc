@@ -57,6 +57,21 @@ auto ReadOnlyAppConfig::new_from_env()
     dst->web_server_port = static_cast<uint16_t>(std::atoi(web_server_port_s));
   }
 
+  const char *static_file_doc_root_inp = std::getenv("EC_PRV_URL_SHORTENER__STATIC_FILE_DOC_ROOT");
+  if (static_file_doc_root_inp != nullptr) {
+    dst->static_file_doc_root = std::filesystem::path{static_file_doc_root_inp};
+  }
+
+  const char *static_file_request_path_prefix_inp = std::getenv("EC_PRV_URL_SHORTENER__STATIC_FILE_REQUEST_PATH_PREFIX");
+  if (static_file_request_path_prefix_inp != nullptr) {
+    dst->static_file_request_path_prefix = static_file_request_path_prefix_inp;
+  }
+
+  const char *url_shortener_service_base_url_inp = std::getenv("EC_PRV_URL_SHORTENER__URL_SHORTENER_SERVICE_BASE_URL");
+  if (url_shortener_service_base_url_inp != nullptr) {
+    dst->url_shortener_service_base_url = url_shortener_service_base_url_inp;
+  }
+
   return dst;
 }
   
