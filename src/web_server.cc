@@ -67,12 +67,12 @@ public:
       // serve home page
       DLOG(INFO) << "Detected route \"/\". Serving home page.";
       // use StaticHandler to serve a specific file
-      return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_.get(), app_state_->static_file_doc_root, "index.html");
+      return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_, app_state_->static_file_doc_root, "index.html");
     } else if (msg->getPath().starts_with("/static/") &&
                msg->getMethod() == proxygen::HTTPMethod::GET) {
       // serve static files
       DLOG(INFO) << "Route \"static\" found. Serving static files.";
-      return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_.get(), app_state_->static_file_doc_root, {}); 
+      return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_, app_state_->static_file_doc_root, {}); 
     } // else if
       // (ec_prv::url_shortener::url_shortening::is_ok_request_path(msg->getPath())
       // && msg->getMethod() == proxygen::HTTPMethod::GET) {
@@ -90,7 +90,7 @@ private:
       *app_state_; // TODO: make this a folly::ThreadLocalPtr
   std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db_;
   // folly::ThreadLocalPtr<::ec_prv::url_shortener::web::StaticFileCache> static_file_cache_{nullptr};
-  std::unique_ptr<::ec_prv::url_shortener::web::StaticFileCache> static_file_cache_{nullptr};
+  std::shared_ptr<::ec_prv::url_shortener::web::StaticFileCache> static_file_cache_{nullptr};
 };
 
 } // namespace
@@ -100,12 +100,14 @@ int main(int argc, char *argv[]) {
   google::InitGoogleLogging(argv[0]);
   google::InstallFailureSignalHandler();
 
+  std::unique_ptr<::ec_prv::url_shortener::app_config::ReadOnlyAppConfig, ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::ReadOnlyAppConfigDeleter> ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::new_from_env();
+
   std::vector<proxygen::HTTPServer::IPConfig> IPs = {
-      {folly::SocketAddress(FLAGS_ip, FLAGS_http_port, true),
+      {folly::SocketAddress(ro_app_state->web_server_bind_host, ro_app_state->web_server_port, true),
        proxygen::HTTPServer::Protocol::HTTP},
-      {folly::SocketAddress(FLAGS_ip, FLAGS_spdy_port, true),
+      {folly::SocketAddress(ro_app_state->web_server_bind_host, FLAGS_spdy_port, true),
        proxygen::HTTPServer::Protocol::SPDY},
-      {folly::SocketAddress(FLAGS_ip, FLAGS_h2_port, true),
+      {folly::SocketAddress(ro_app_state->web_server_bind_host, FLAGS_h2_port, true),
        proxygen::HTTPServer::Protocol::HTTP2},
   };
   // TODO(zds): add support for http3?
@@ -129,7 +131,6 @@ int main(int argc, char *argv[]) {
   const uint64_t *highwayhash_key =
       ::ec_prv::url_shortener::url_shortening::create_highwayhash_key(
           highwayhash_key_inp);
-  std::unique_ptr<::ec_prv::url_shortener::app_config::ReadOnlyAppConfig, ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::ReadOnlyAppConfigDeleter> ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::new_from_env();
 
   proxygen::HTTPServerOptions options;
   options.threads = static_cast<size_t>(FLAGS_threads);

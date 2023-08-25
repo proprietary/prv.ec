@@ -3,6 +3,7 @@
 
 #include <cstdint>
 #include <memory>
+#include <string>
 #include <filesystem>
 
 namespace ec_prv {
@@ -25,6 +26,9 @@ struct ReadOnlyAppConfig {
   // the shortened URL slug is appended. For example,
   // "https://prv.ec/" or "https://bit.ly/"
   const char *url_shortener_service_base_url{"https://prv.ec/"};
+
+  // host to bind web server to, e.g., localhost, 0.0.0.0
+  std::string web_server_bind_host{"127.0.0.1"};
 
   struct ReadOnlyAppConfigDeleter {
     void operator()(ReadOnlyAppConfig *that) noexcept;

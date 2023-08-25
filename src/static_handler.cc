@@ -32,7 +32,7 @@ auto file_is_under_dir(const std::filesystem::path& this_file, const std::filesy
 }
 } // namespace
 
-StaticHandler::StaticHandler(StaticFileCache* cache, const std::filesystem::path& doc_root, std::string_view which_file_to_serve)
+StaticHandler::StaticHandler(std::weak_ptr<StaticFileCache> cache, const std::filesystem::path& doc_root, std::string_view which_file_to_serve)
   : cache_(cache), doc_root_(doc_root), which_file_to_serve_(which_file_to_serve) {}
 
   auto StaticHandler::expected_file_path(const proxygen::HTTPMessage* request, const std::filesystem::path& doc_root) noexcept -> std::filesystem::path {
@@ -64,8 +64,9 @@ void StaticHandler::onRequest(
       return;
   }
   // cache lookup here; early exit possible
-  if (cache_->exists(file_path_should_be)) {
-    auto cached_file = cache_->get(file_path_should_be);
+  auto this_cache = cache_.lock();
+  if (this_cache->exists(file_path_should_be)) {
+    auto cached_file = this_cache->get(file_path_should_be);
     proxygen::ResponseBuilder(downstream_).status(200, "OK").body(cached_file).sendWithEOM();
     return;
   }
@@ -112,7 +113,8 @@ void StaticHandler::read_file(folly::EventBase *evb) {
       evb->runInEventBaseThread([this, body = buf.move()]() mutable {
 	// saving file body to cache
 	CHECK(!requested_file_path_.empty());
-	cache_->append_data(requested_file_path_, body->clone());
+	auto this_cache = cache_.lock();
+	this_cache->append_data(requested_file_path_, body->clone());
 	// stream response
         proxygen::ResponseBuilder(downstream_).body(std::move(body)).send();
       });

@@ -1,6 +1,7 @@
 #include "app_config.h"
 
 #include <cstdlib>
+#include <cstring>
 #include <cassert>
 #include <string>
 #include <stdexcept>
@@ -55,6 +56,11 @@ auto ReadOnlyAppConfig::new_from_env()
   const char* web_server_port_s = std::getenv("EC_PRV_URL_SHORTENER__WEB_SERVER_PORT");
   if (web_server_port_s != nullptr) {
     dst->web_server_port = static_cast<uint16_t>(std::atoi(web_server_port_s));
+  }
+
+  const char *web_server_bind_host_inp = std::getenv("EC_PRV_URL_SHORTENER__WEB_SERVER_BIND_HOST");
+  if (web_server_bind_host_inp != nullptr && strlen(web_server_bind_host_inp) > 0) {
+    dst->web_server_bind_host.assign(web_server_bind_host_inp);
   }
 
   const char *static_file_doc_root_inp = std::getenv("EC_PRV_URL_SHORTENER__STATIC_FILE_DOC_ROOT");

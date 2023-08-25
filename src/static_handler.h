@@ -41,7 +41,7 @@ private:
 
 class StaticHandler : public proxygen::RequestHandler {
 public:
-  explicit StaticHandler(StaticFileCache* cache, const std::filesystem::path& doc_root, std::string_view which_file_to_serve);
+  explicit StaticHandler(std::weak_ptr<StaticFileCache> cache, const std::filesystem::path& doc_root, std::string_view which_file_to_serve);
   
   void
   onRequest(std::unique_ptr<proxygen::HTTPMessage> request) noexcept override;
@@ -74,8 +74,7 @@ private:
   bool finished_{false};
   const std::filesystem::path& doc_root_;
   const std::string_view which_file_to_serve_;
-  // TODO(zds): integrate cache
-  StaticFileCache *cache_{nullptr};
+  std::weak_ptr<StaticFileCache> cache_;
 };
 } // namespace web
 } // namespace url_shortener
