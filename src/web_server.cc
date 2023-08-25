@@ -13,6 +13,7 @@
 #include <proxygen/httpserver/ResponseBuilder.h>
 #include <string>
 
+#include "app_config.h"
 #include "url_shortening.h"
 
 // request handlers
@@ -28,19 +29,6 @@ DEFINE_int32(threads, 0,
              "will use the number of cores on this machine.");
 
 namespace {
-
-struct ReadOnlyAppConfig {
-  const uint64_t *highwayhash_key{nullptr};
-
-  // This is the base URL for your URL shortening service, after which
-  // the shortened URL slug is appended. For example,
-  // "https://prv.ec/" or "https://bit.ly/"
-  const char *url_shortener_service_base_url;
-
-  static auto new_from_env() -> std::unique_ptr<ReadOnlyAppConfig> {
-    return {};
-  }
-};
 
 class NotFoundHandler : public proxygen::RequestHandler {
 public:
@@ -60,8 +48,8 @@ public:
 class MyRequestHandlerFactory : public proxygen::RequestHandlerFactory {
 public:
   MyRequestHandlerFactory(
-      const ReadOnlyAppConfig *app_state,
-      std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db)
+			  const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig *app_state,
+			  std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db)
       : app_state_(app_state), db_(db) {}
   void onServerStart(folly::EventBase *evb) noexcept override {}
   void onServerStop() noexcept override {}
@@ -94,7 +82,7 @@ public:
   }
 
 private:
-  const ReadOnlyAppConfig
+  const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig
       *app_state_; // TODO: make this a folly::ThreadLocalPtr
   std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db_;
 };
@@ -135,7 +123,7 @@ int main(int argc, char *argv[]) {
   const uint64_t *highwayhash_key =
       ::ec_prv::url_shortener::url_shortening::create_highwayhash_key(
           highwayhash_key_inp);
-  ReadOnlyAppConfig ro_app_state{highwayhash_key};
+  std::unique_ptr<::ec_prv::url_shortener::app_config::ReadOnlyAppConfig, ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::ReadOnlyAppConfigDeleter> ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::new_from_env();
 
   proxygen::HTTPServerOptions options;
   options.threads = static_cast<size_t>(FLAGS_threads);
@@ -144,7 +132,7 @@ int main(int argc, char *argv[]) {
   options.enableContentCompression = false;
   options.handlerFactories =
       proxygen::RequestHandlerChain()
-          .addThen<MyRequestHandlerFactory>(&ro_app_state, db)
+    .addThen<MyRequestHandlerFactory>(ro_app_state.get(), db)
           .build();
   // Increase the default flow control to 1MB/10MB
   options.initialReceiveWindow = uint32_t(1 << 20);
