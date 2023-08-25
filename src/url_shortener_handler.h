@@ -11,33 +11,37 @@ class ResponseHandler;
 }
 
 namespace ec_prv {
-  namespace url_shortener {
-    namespace web {
-      class UrlShortenerApiRequestHandler : public proxygen::RequestHandler {
-      public:
-	explicit UrlShortenerApiRequestHandler(::ec_prv::url_shortener::db::ShortenedUrlsDatabase* db, const uint64_t* highwayhash_key);
+namespace url_shortener {
+namespace web {
+class UrlShortenerApiRequestHandler : public proxygen::RequestHandler {
+public:
+  explicit UrlShortenerApiRequestHandler(
+      ::ec_prv::url_shortener::db::ShortenedUrlsDatabase *db,
+      const uint64_t *highwayhash_key);
 
-	void onRequest(std::unique_ptr<proxygen::HTTPMessage> request) noexcept override;
+  void
+  onRequest(std::unique_ptr<proxygen::HTTPMessage> request) noexcept override;
 
-	void onBody(std::unique_ptr<folly::IOBuf> body) noexcept override;
+  void onBody(std::unique_ptr<folly::IOBuf> body) noexcept override;
 
-	void onEOM() noexcept override;
+  void onEOM() noexcept override;
 
-	void onUpgrade(proxygen::UpgradeProtocol proto) noexcept override;
+  void onUpgrade(proxygen::UpgradeProtocol proto) noexcept override;
 
-	void requestComplete() noexcept override;
+  void requestComplete() noexcept override;
 
-	void onError(proxygen::ProxygenError err) noexcept override;
-      private:
-	void sendError(const std::string& what) noexcept;
-	void sendErrorBadRequest(const std::string& what) noexcept;
-	
-	ec_prv::url_shortener::db::ShortenedUrlsDatabase* const db_;
-	const uint64_t* highwayhash_key_;
+  void onError(proxygen::ProxygenError err) noexcept override;
 
-	std::unique_ptr<proxygen::HTTPMessage> request_;
-	std::unique_ptr<folly::IOBuf> body_;
-      };
-    } // namespace web
-  } // namespace url_shortener
-} // namesapce ec_prv
+private:
+  void sendError(const std::string &what) noexcept;
+  void sendErrorBadRequest(const std::string &what) noexcept;
+
+  ec_prv::url_shortener::db::ShortenedUrlsDatabase *const db_;
+  const uint64_t *highwayhash_key_;
+
+  std::unique_ptr<proxygen::HTTPMessage> request_;
+  std::unique_ptr<folly::IOBuf> body_;
+};
+} // namespace web
+} // namespace url_shortener
+} // namespace ec_prv
