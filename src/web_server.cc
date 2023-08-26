@@ -20,6 +20,7 @@
 // request handlers
 #include "static_handler.h"
 #include "url_shortener_handler.h"
+#include "make_url_request_handler.h"
 
 DEFINE_int32(http_port, 11000, "Port to listen on with HTTP protocol");
 DEFINE_int32(spdy_port, 11001, "Port to listen on with SPDY protocol");
@@ -55,14 +56,19 @@ public:
   }
   void onServerStart(folly::EventBase *evb) noexcept override {
     static_file_cache_.reset(new ::ec_prv::url_shortener::web::StaticFileCache{});
+    timer_ = folly::HHWheelTimer::newTimer(
+					       evb,
+					       std::chrono::milliseconds(folly::HHWheelTimer::DEFAULT_TICK_INTERVAL),
+					       folly::AsyncTimeout::InternalEnum::NORMAL, std::chrono::milliseconds(5000));
   }
   void onServerStop() noexcept override {
     static_file_cache_.reset();
+    timer_.reset();
   }
   proxygen::RequestHandler *
   onRequest(proxygen::RequestHandler *request_handler,
             proxygen::HTTPMessage *msg) noexcept override {
-    if (msg->getPath() == "/" &&
+    if (msg->getPathAsStringPiece() == "/" &&
         msg->getMethod() == proxygen::HTTPMethod::GET) {
       // serve home page
       DLOG(INFO) << "Detected route \"/\". Serving home page.";
@@ -73,6 +79,9 @@ public:
       // serve static files
       DLOG(INFO) << "Route \"static\" found. Serving static files.";
       return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_, app_state_->static_file_doc_root, {}); 
+    } else if (msg->getPath().starts_with("/api/")) {
+      DLOG(INFO) << "Route \"/api/*\" found.";
+      return new ::ec_prv::url_shortener::web::MakeUrlRequestHandler(db_.get(), timer_.get(), app_state_->highwayhash_key);
     } // else if
       // (ec_prv::url_shortener::url_shortening::is_ok_request_path(msg->getPath())
       // && msg->getMethod() == proxygen::HTTPMethod::GET) {
@@ -91,6 +100,7 @@ private:
   std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db_;
   // folly::ThreadLocalPtr<::ec_prv::url_shortener::web::StaticFileCache> static_file_cache_{nullptr};
   std::shared_ptr<::ec_prv::url_shortener::web::StaticFileCache> static_file_cache_{nullptr};
+  folly::HHWheelTimer::UniquePtr timer_;
 };
 
 } // namespace
