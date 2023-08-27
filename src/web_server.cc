@@ -1,5 +1,6 @@
 #include <chrono>
 #include <folly/Memory.h>
+#include <folly/init/Init.h>
 #include <folly/ThreadLocal.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/GlobalExecutor.h>
@@ -81,7 +82,7 @@ public:
       return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_, app_state_->static_file_doc_root, {}); 
     } else if (msg->getPath().starts_with("/api/")) {
       DLOG(INFO) << "Route \"/api/*\" found.";
-      return new ::ec_prv::url_shortener::web::MakeUrlRequestHandler(db_.get(), timer_.get(), app_state_->highwayhash_key);
+      return new ::ec_prv::url_shortener::web::MakeUrlRequestHandler(db_.get(), timer_.get(), app_state_, app_state_->highwayhash_key);
     } // else if
       // (ec_prv::url_shortener::url_shortening::is_ok_request_path(msg->getPath())
       // && msg->getMethod() == proxygen::HTTPMethod::GET) {
@@ -106,9 +107,11 @@ private:
 } // namespace
 
 int main(int argc, char *argv[]) {
-  gflags::ParseCommandLineFlags(&argc, &argv, true);
-  google::InitGoogleLogging(argv[0]);
-  google::InstallFailureSignalHandler();
+  //gflags::ParseCommandLineFlags(&argc, &argv, true);
+  //google::InitGoogleLogging(argv[0]);
+  //google::InstallFailureSignalHandler();
+
+  folly::Init _folly_init {&argc, &argv, false};
 
   std::unique_ptr<::ec_prv::url_shortener::app_config::ReadOnlyAppConfig, ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::ReadOnlyAppConfigDeleter> ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::new_from_env();
 

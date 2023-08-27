@@ -1,7 +1,10 @@
 #include "url_shortener_handler.h"
 
 #include <boost/algorithm/string.hpp>
-#include <folly/portability/GFlags.h>
+#include <glog/logging.h>
+#include <folly/executors/GlobalExecutor.h>
+#include <folly/io/async/EventBase.h>
+#include <folly/io/async/EventBaseManager.h>
 #include <memory>
 #include <proxygen/httpserver/RequestHandler.h>
 #include <proxygen/httpserver/ResponseBuilder.h>
@@ -46,27 +49,33 @@ void UrlShortenerApiRequestHandler::onEOM() noexcept {
       return;
     } else {
       DLOG(INFO) << "looking up short url: " << short_url;
-      auto res = db_->get(short_url);
-      if (std::holds_alternative<db::UrlShorteningDbError>(res)) {
-        auto &err = *std::get_if<db::UrlShorteningDbError>(&res);
-        if (err == db::UrlShorteningDbError::NotFound) {
-          proxygen::ResponseBuilder(downstream_)
-              .status(404, "Not Found")
-              .sendWithEOM();
-          return;
-        } else {
-          proxygen::ResponseBuilder(downstream_)
-              .status(500, "Internal Server Error")
-              .sendWithEOM();
-          return;
-        }
-      }
-      const std::string *long_url = std::get_if<std::string>(&res);
-      CHECK(long_url != nullptr);
-      proxygen::ResponseBuilder(downstream_)
-          .status(301, "Moved Permanently")
-          .header(proxygen::HTTPHeaderCode::HTTP_HEADER_LOCATION, *long_url)
-          .sendWithEOM();
+      folly::EventBase* evb = folly::EventBaseManager::get()->getEventBase();
+      auto executor = folly::getUnsafeMutableGlobalCPUExecutor();
+      executor->add([this, short_url, evb]() mutable {
+	auto res = db_->get(short_url);
+	evb->runInEventBaseThread([this, res]() mutable {
+	  if (std::holds_alternative<db::UrlShorteningDbError>(res)) {
+	    auto &err = *std::get_if<db::UrlShorteningDbError>(&res);
+	    if (err == db::UrlShorteningDbError::NotFound) {
+	      proxygen::ResponseBuilder(downstream_)
+		.status(404, "Not Found")
+		.sendWithEOM();
+	      return;
+	    } else {
+	      proxygen::ResponseBuilder(downstream_)
+		.status(500, "Internal Server Error")
+		.sendWithEOM();
+	      return;
+	    }
+	  }
+	  const std::string *long_url = std::get_if<std::string>(&res);
+	  CHECK(long_url != nullptr);
+	  proxygen::ResponseBuilder(downstream_)
+	    .status(301, "Moved Permanently")
+	    .header(proxygen::HTTPHeaderCode::HTTP_HEADER_LOCATION, *long_url)
+	    .sendWithEOM();
+	});
+      });
     }
   } else if (request_->getMethod() == proxygen::HTTPMethod::POST ||
              request_->getMethod() == proxygen::HTTPMethod::PUT) {
@@ -88,13 +97,19 @@ void UrlShortenerApiRequestHandler::onEOM() noexcept {
       auto generated_short_url =
           ec_prv::url_shortener::url_shortening::generate_shortened_url(
               request_body, highwayhash_key_);
-      db_->put(generated_short_url, request_body);
-      // auto full_url = std::getenv("EC_PRV_URL_SHORTENER__BASE_URL") +
-      // generated_short_url;
-      proxygen::ResponseBuilder(downstream_)
-          .status(200, "OK")
-          .body(generated_short_url)
-          .sendWithEOM();
+      folly::EventBase *evb = folly::EventBaseManager::get()->getEventBase();
+      std::shared_ptr<folly::Executor> executor = folly::getUnsafeMutableGlobalCPUExecutor();
+      executor->add([this, generated_short_url, request_body, evb]() mutable {
+	db_->put(generated_short_url, request_body);
+	evb->runInEventBaseThread([this, generated_short_url]() mutable {
+	  // auto full_url = std::getenv("EC_PRV_URL_SHORTENER__BASE_URL") +
+	  // generated_short_url;
+	  proxygen::ResponseBuilder(downstream_)
+	    .status(200, "OK")
+	    .body(generated_short_url)
+	    .sendWithEOM();
+	});
+      });
     }
   } else {
     sendErrorBadRequest("wrong method");

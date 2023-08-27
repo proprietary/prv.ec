@@ -9,6 +9,7 @@
 #include <proxygen/httpserver/RequestHandler.h>
 #include <proxygen/httpserver/ResponseHandler.h>
 #include <proxygen/lib/http/HTTPConnector.h>
+#include <folly/io/async/SSLContext.h>
 #include <folly/io/async/AsyncSocket.h>
 #include <folly/io/async/HHWheelTimer.h>
 #include <folly/io/async/DelayedDestruction.h>
@@ -18,6 +19,7 @@
 
 #include "session_wrapper.h"
 #include "db.h"
+#include "app_config.h"
 
 namespace ec_prv {
 namespace url_shortener {
@@ -27,6 +29,7 @@ public:
   explicit MakeUrlRequestHandler(
       ::ec_prv::url_shortener::db::ShortenedUrlsDatabase *db,
       folly::HHWheelTimer *timer,
+      const app_config::ReadOnlyAppConfig *const ro_app_config,
       const uint64_t *highwayhash_key);
 
   // RequestHandler methods
@@ -48,7 +51,14 @@ public:
   void connectSuccess(proxygen::HTTPUpstreamSession* session);
   void connectError(const folly::AsyncSocketException& ex);
 
-  // Communication with captcha service
+
+private:
+  // high level
+  auto query_captcha_service(const std::string& captcha_user_response) -> folly::Future<std::string>;
+
+  auto do_shorten_url(const std::string& long_url) -> std::string;
+
+  // Internal communication with captcha service
 
   void on_captcha_service_detach_transaction() noexcept;
 
@@ -56,7 +66,6 @@ public:
 
   void on_captcha_service_error(const proxygen::HTTPException& error) noexcept;
 
-private:
   
   class CaptchaServiceHTTPTransactionHandler : public proxygen::HTTPTransactionHandler {
   public:
@@ -126,6 +135,7 @@ private:
 
   ec_prv::url_shortener::db::ShortenedUrlsDatabase *const db_;
   const uint64_t *highwayhash_key_;
+  const ec_prv::url_shortener::app_config::ReadOnlyAppConfig *const ro_app_config_;
   std::string_view captcha_service_api_key_;
   std::unique_ptr<proxygen::HTTPMessage> request_headers_to_captcha_service_;
   std::unique_ptr<folly::IOBuf> request_body_to_captcha_service_; // POST body to reCaptcha API
@@ -136,10 +146,11 @@ private:
   folly::HHWheelTimer *timer_;
   proxygen::HTTPTransaction *txn_{nullptr};
   bool client_terminated_{false};
-  folly::Promise<folly::dynamic> captcha_service_result_promise_;
+  folly::Promise<std::string> captcha_service_result_promise_;
   std::function<void(folly::dynamic&)> use_result_;
+  std::shared_ptr<folly::SSLContext> ssl_context_;
 
-  std::unique_ptr<proxygen::HTTPMessage> request_;
+  std::unique_ptr<proxygen::HTTPMessage> headers_;
   std::unique_ptr<folly::IOBuf> body_{nullptr};
 };
 } // namespace web

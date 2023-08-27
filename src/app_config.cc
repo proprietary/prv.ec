@@ -1,5 +1,6 @@
 #include "app_config.h"
 
+#include <glog/logging.h>
 #include <cstdlib>
 #include <cstring>
 #include <cassert>
@@ -77,6 +78,15 @@ auto ReadOnlyAppConfig::new_from_env()
   if (url_shortener_service_base_url_inp != nullptr) {
     dst->url_shortener_service_base_url = url_shortener_service_base_url_inp;
   }
+
+  const char *trusted_certificates_path_inp = std::getenv("EC_PRV_URL_SHORTENER__CA_CERTS_PATH");
+  if (trusted_certificates_path_inp != nullptr) {
+    dst->trusted_certificates_path.assign(trusted_certificates_path_inp);
+    CHECK(std::filesystem::exists(dst->trusted_certificates_path));
+  }
+
+  dst->captcha_service_api_key = std::getenv("EC_PRV_URL_SHORTENER__CAPTCHA_SERVICE_API_KEY");
+  CHECK(dst->captcha_service_api_key.length() > 0) << "Missing environment variable for reCAPTCHA API key";
 
   return dst;
 }
