@@ -1,6 +1,5 @@
 #include "url_shortener_handler.h"
 
-#include <boost/algorithm/string.hpp>
 #include <folly/GLog.h>
 #include <folly/executors/GlobalExecutor.h>
 #include <folly/io/async/EventBase.h>
