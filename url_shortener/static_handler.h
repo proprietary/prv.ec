@@ -1,6 +1,8 @@
 #ifndef _INCLUDE_EC_PRV_URL_SHORTENER_WEB_STATIC_HANDLER_H
 #define _INCLUDE_EC_PRV_URL_SHORTENER_WEB_STATIC_HANDLER_H
 
+#include <folly/Range.h>
+#include <vector>
 #include <filesystem>
 #include <folly/File.h>
 #include <folly/Memory.h>
@@ -29,14 +31,14 @@ public:
   // TODO(zds): test this with non-textual, binary data files
 
   auto exists(const std::filesystem::path &) const -> bool;
-  auto get(const std::filesystem::path &) const -> std::string_view;
+  auto get_copy(const std::filesystem::path &) const -> std::vector<unsigned char>;
+  auto get(const std::filesystem::path &) const -> std::unique_ptr<folly::IOBuf>;
   auto set(const std::filesystem::path &file_path, std::string_view body)
       -> void;
-  auto append_data(const std::filesystem::path &file_path,
-                   std::unique_ptr<folly::IOBuf> buf) -> void;
+  auto append_data(const std::filesystem::path &file_path, folly::ByteRange buf) -> void;
 
 private:
-  folly::F14NodeMap<std::string, std::string> cache_;
+  folly::F14NodeMap<std::string, std::vector<unsigned char>> cache_;
 };
 
 // TODO(zds): serve files with appropriate mime type

@@ -74,6 +74,7 @@ auto ReadOnlyAppConfig::new_from_env()
       std::getenv("EC_PRV_URL_SHORTENER__STATIC_FILE_DOC_ROOT");
   if (static_file_doc_root_inp != nullptr) {
     dst->static_file_doc_root = std::filesystem::path{static_file_doc_root_inp};
+    CHECK(std::filesystem::exists(dst->static_file_doc_root)) << "Static file doc root provided via environment variables does not exist";
   }
 
   const char *static_file_request_path_prefix_inp =

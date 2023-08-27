@@ -1,5 +1,8 @@
 #include "static_handler.h"
 
+#include <vector>
+#include <algorithm>
+#include <folly/Range.h>
 #include <folly/FileUtil.h>
 #include <folly/executors/GlobalExecutor.h>
 #include <folly/io/async/EventBaseManager.h>
@@ -27,7 +30,7 @@ auto file_is_under_dir(const std::filesystem::path &this_file,
   for (;
        parent_it != is_under_this_dir.end() && this_file_it != this_file.end();
        ++parent_it, ++this_file_it) {
-    if (*parent_it != *this_file_it) {
+    if (*parent_it != *this_file_it && *parent_it != "") {
       return false;
     }
   }
@@ -56,16 +59,18 @@ auto StaticHandler::expected_file_path(
       doc_root /
       std::filesystem::path{req_path.begin() + static_files_url_prefix.size(),
                             req_path.end()};
+  DLOG(INFO) << "Resolving URL request \"" << request->getPath() << "\" as file path \"" << dst.string() << "\"";
   return dst;
 }
 
 void StaticHandler::onRequest(
     std::unique_ptr<proxygen::HTTPMessage> request) noexcept {
   if (request->getMethod() != proxygen::HTTPMethod::GET) {
-    sendBadRequestError("bad method");
+    proxygen::ResponseBuilder(downstream_).status(405, "Method Not Allowed").sendWithEOM();
     return;
   }
   if (!validate_static_file_request_path(request->getPath())) {
+    DLOG(INFO) << "malicious input detected";
     sendBadRequestError("malicious input detected");
     return;
   }
@@ -75,17 +80,17 @@ void StaticHandler::onRequest(
   auto file_path_should_be =
       StaticHandler::expected_file_path(request.get(), doc_root_);
   if (!file_is_under_dir(file_path_should_be, doc_root_)) {
+    DLOG(INFO) << "potential malicious input";
     sendBadRequestError("malicious input detected in request for static asset");
     return;
   }
   // cache lookup here; early exit possible
   auto this_cache = cache_.lock();
   if (this_cache->exists(file_path_should_be)) {
-    auto cached_file = this_cache->get(file_path_should_be);
+    DLOG(INFO) << "Found " << file_path_should_be << " in the cache. Exiting early!";
+     auto cached_file = this_cache->get(file_path_should_be);
     proxygen::ResponseBuilder(downstream_)
-        .status(200, "OK")
-        .body(cached_file)
-        .sendWithEOM();
+        .status(200, "OK").body(std::move(cached_file)).sendWithEOM();
     return;
   }
   try {
@@ -93,15 +98,13 @@ void StaticHandler::onRequest(
   } catch (const std::system_error &err) {
     proxygen::ResponseBuilder(downstream_)
         .status(404, "Not Found")
-        .body("Could not find this static file")
         .sendWithEOM();
     return;
   }
   requested_file_path_ = file_path_should_be;
   proxygen::ResponseBuilder(downstream_).status(200, "OK").send();
   read_file_scheduled_ = true;
-  // TODO(zds): any way to make this safe?
-  folly::getUnsafeMutableGlobalCPUExecutor()->add(
+  folly::getGlobalCPUExecutor()->add(
       std::bind(&StaticHandler::read_file, this,
                 folly::EventBaseManager::get()->getEventBase()));
 }
@@ -130,7 +133,7 @@ void StaticHandler::read_file(folly::EventBase *evb) {
         // saving file body to cache
         CHECK(!requested_file_path_.empty());
         auto this_cache = cache_.lock();
-        this_cache->append_data(requested_file_path_, body->clone());
+        this_cache->append_data(requested_file_path_, body->coalesce());;
         // stream response
         proxygen::ResponseBuilder(downstream_).body(std::move(body)).send();
       });
@@ -156,7 +159,7 @@ void StaticHandler::onEgressResumed() noexcept {
   paused_ = false;
   if (read_file_scheduled_ == false && file_) {
     // still need to read file
-    folly::getUnsafeMutableGlobalCPUExecutor()->add(
+    folly::getGlobalCPUExecutor()->add(
         std::bind(&StaticHandler::read_file, this,
                   folly::EventBaseManager::get()->getEventBase()));
   } else {
@@ -207,8 +210,8 @@ void StaticHandler::sendBadRequestError(const std::string &what) noexcept {
   proxygen::ResponseBuilder(downstream_).status(400, what).sendWithEOM();
 }
 
-auto StaticFileCache::get(const std::filesystem::path &file_path) const
-    -> std::string_view {
+auto StaticFileCache::get_copy(const std::filesystem::path &file_path) const
+  -> std::vector<unsigned char> {
   auto it = cache_.find(file_path.string());
   if (it == cache_.end()) {
     return {};
@@ -222,30 +225,47 @@ auto StaticFileCache::exists(const std::filesystem::path &file_path) const
 }
 
 auto StaticFileCache::append_data(const std::filesystem::path &file_path,
-                                  std::unique_ptr<folly::IOBuf> buf) -> void {
+                                  folly::ByteRange buf) -> void {
   auto it = cache_.find(file_path.string());
   if (it == cache_.end()) {
     DLOG(INFO) << "Attempt to stream file data into the cache for a file that "
                   "is not in the cache. "
                << "It should be in the cache for this function to be called, "
                   "so something is wrong.";
+    std::vector<unsigned char> data;
+    data.reserve(buf.size());
+    data.insert(data.end(), buf.begin(), buf.end());
+    cache_.emplace(std::piecewise_construct, std::forward_as_tuple(file_path.string()), std::forward_as_tuple(std::move(data)));
     return;
   }
-  std::string &v = it->second;
-  // TODO(zds): obviate this kind of unsafe casting
-  v.append(reinterpret_cast<const char *>(buf->data()), buf->length());
+  std::vector<unsigned char>& data = it->second;
+  data.insert(data.end(), buf.begin(), buf.end());
 }
 
 auto StaticFileCache::set(const std::filesystem::path &file_path,
                           std::string_view body) -> void {
+  std::vector<unsigned char> data;
+  data.reserve(body.size());
+  for (auto ch : body) {
+    data.push_back(static_cast<unsigned char>(ch));
+  }
   auto res = cache_.emplace(std::piecewise_construct,
                             std::forward_as_tuple(file_path.string()),
-                            std::forward_as_tuple(std::string{body}));
+                            std::forward_as_tuple(std::move(data)));
   if (!res.second) {
     DLOG(INFO) << "no insertion happend when inserting into static file cache "
                   "the path \""
                << file_path << "\" with body: \"" << body << "\"";
   }
+}
+
+auto StaticFileCache::get(const std::filesystem::path &file_path) const -> std::unique_ptr<folly::IOBuf> {
+  auto it = cache_.find(file_path.string());
+  if (it == cache_.end()) {
+    return {};
+  }
+  const std::vector<unsigned char>& underlying = it->second;
+  return folly::IOBuf::wrapBuffer(underlying.data(), underlying.size());
 }
 
 } // namespace web
