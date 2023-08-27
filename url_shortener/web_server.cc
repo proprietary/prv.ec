@@ -176,11 +176,6 @@ int main(int argc, char *argv[]) {
   options.receiveSessionWindowSize = 10 * (1 << 20);
   options.h2cEnabled = true;
 
-  auto disk_io_thread_pool = std::make_shared<folly::CPUThreadPoolExecutor>(
-      FLAGS_threads, std::make_shared<folly::NamedThreadFactory>(
-                         "url_shortener_web_server_disk_io_thread"));
-  folly::setUnsafeMutableGlobalCPUExecutor(disk_io_thread_pool);
-
   proxygen::HTTPServer server(std::move(options));
   server.bind(IPs);
 
