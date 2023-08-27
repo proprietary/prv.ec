@@ -62,35 +62,35 @@ public:
 					       std::chrono::milliseconds(folly::HHWheelTimer::DEFAULT_TICK_INTERVAL),
 					       folly::AsyncTimeout::InternalEnum::NORMAL, std::chrono::milliseconds(5000));
   }
-  void onServerStop() noexcept override {
+ void onServerStop() noexcept override {
     static_file_cache_.reset();
     timer_.reset();
   }
   proxygen::RequestHandler *
   onRequest(proxygen::RequestHandler *request_handler,
             proxygen::HTTPMessage *msg) noexcept override {
-    if (msg->getPathAsStringPiece() == "/" &&
-        msg->getMethod() == proxygen::HTTPMethod::GET) {
+    auto path = msg->getPath();
+    auto method = msg->getMethod();
+    if (path == "/" && method == proxygen::HTTPMethod::GET) {
       // serve home page
       DLOG(INFO) << "Detected route \"/\". Serving home page.";
       // use StaticHandler to serve a specific file
       return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_, app_state_->static_file_doc_root, "index.html");
-    } else if (msg->getPath().starts_with("/static/") &&
-               msg->getMethod() == proxygen::HTTPMethod::GET) {
+    } else if (path.rfind("/static/", 0) == 0 && method == proxygen::HTTPMethod::GET) {
       // serve static files
       DLOG(INFO) << "Route \"static\" found. Serving static files.";
       return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_, app_state_->static_file_doc_root, {}); 
-    } else if (msg->getPath().starts_with("/api/")) {
+    } else if (path.rfind("/api/", 0) == 0) {
       DLOG(INFO) << "Route \"/api/*\" found.";
-      return new ::ec_prv::url_shortener::web::MakeUrlRequestHandler(db_.get(), timer_.get(), app_state_, app_state_->highwayhash_key);
-    } // else if
-      // (ec_prv::url_shortener::url_shortening::is_ok_request_path(msg->getPath())
-      // && msg->getMethod() == proxygen::HTTPMethod::GET) {
-    std::string_view parsed = ec_prv::url_shortener::url_shortening::parse_out_request_str(msg->getPathAsStringPiece());
-    if (parsed.length() > 0 || (msg->getPathAsStringPiece() == "/" && msg->getMethod() == proxygen::HTTPMethod::POST)) {
-      return new ::ec_prv::url_shortener::web::UrlShortenerApiRequestHandler(
-          db_.get() /* TODO: fix unsafe pointer passing */,
-          app_state_->highwayhash_key);
+      if (path == "/api/v1/create") {
+	return new ::ec_prv::url_shortener::web::MakeUrlRequestHandler(db_.get(), timer_.get(), app_state_);
+      } else {
+	return new NotFoundHandler{};
+      }
+    }
+    std::string_view parsed = ec_prv::url_shortener::url_shortening::parse_out_request_str(path);
+    if (parsed.length() > 0) {
+      return new ::ec_prv::url_shortener::web::UrlRedirectHandler(std::string{parsed}, db_.get(), app_state_);
     }
     return new NotFoundHandler();
   }

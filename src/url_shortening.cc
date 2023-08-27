@@ -12,12 +12,12 @@ namespace url_shortener {
 namespace url_shortening {
 const static std::string_view alphabet =
     "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz";
-static constexpr std::size_t max_url_slug = 1000;
+static constexpr std::size_t max_request_str_len = 1000;
 static constexpr auto shortened_url_len =
     7; // char length of the slug returned that keys a shortened URL
 
 auto is_ok_request_path(std::string_view src) -> bool {
-  if (src.length() > max_url_slug) {
+  if (src.length() > max_request_str_len) {
     return false;
   }
   for (int i = 0; i < src.length(); ++i) {
@@ -33,7 +33,7 @@ auto is_ok_request_path(std::string_view src) -> bool {
 }
 
 auto parse_out_request_str(std::string_view src) -> std::string_view {
-  if (src.size() > max_url_slug) {
+  if (src.size() > max_request_str_len) {
     // too long
     return {};
   }

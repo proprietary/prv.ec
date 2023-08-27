@@ -17,7 +17,6 @@
 #include <string_view>
 #include <memory>
 
-#include "session_wrapper.h"
 #include "db.h"
 #include "app_config.h"
 
@@ -29,8 +28,7 @@ public:
   explicit MakeUrlRequestHandler(
       ::ec_prv::url_shortener::db::ShortenedUrlsDatabase *db,
       folly::HHWheelTimer *timer,
-      const app_config::ReadOnlyAppConfig *const ro_app_config,
-      const uint64_t *highwayhash_key);
+      const app_config::ReadOnlyAppConfig *const ro_app_config);
 
   // RequestHandler methods
   void
@@ -60,20 +58,36 @@ private:
 
   // Internal communication with captcha service
 
+  class CaptchaServiceHTTPConnectorCallback : public proxygen::HTTPConnector::Callback {
+  public:
+    explicit CaptchaServiceHTTPConnectorCallback(std::unique_ptr<proxygen::HTTPMessage> headers, std::unique_ptr<folly::IOBuf> body);
+    void connectSuccess(proxygen::HTTPUpstreamSession*);
+    void connectError(const folly::AsyncSocketException&);
+  private:
+    std::unique_ptr<proxygen::HTTPMessage> headers_;
+    std::unique_ptr<folly::IOBuf> body_;
+  };
+
   void on_captcha_service_detach_transaction() noexcept;
 
   void on_captcha_service_EOM(std::unique_ptr<proxygen::HTTPMessage> headers, std::unique_ptr<folly::IOBuf> body);
 
   void on_captcha_service_error(const proxygen::HTTPException& error) noexcept;
 
-  
+  // Used for embedding an http client calls in the request
+  // handlers. During handling of an API route, the server needs to
+  // make a web request to reCAPTCHA.
   class CaptchaServiceHTTPTransactionHandler : public proxygen::HTTPTransactionHandler {
   public:
     explicit CaptchaServiceHTTPTransactionHandler(MakeUrlRequestHandler& parent) : parent_{parent} {}
-    void setTransaction(proxygen::HTTPTransaction*) noexcept override {}
+    void setTransaction(proxygen::HTTPTransaction* txn) noexcept override {
+      txn_ = txn;
+      cancelled_ = false;
+    }
     void detachTransaction() noexcept override {
       DLOG(INFO) << "captcha service transaction cancelled";
       cancelled_ = true;
+      txn_ = nullptr;
       parent_.on_captcha_service_detach_transaction();
     }
     void onHeadersComplete(std::unique_ptr<proxygen::HTTPMessage> msg) noexcept override {
@@ -126,6 +140,7 @@ private:
     bool cancelled_{false};
     std::unique_ptr<proxygen::HTTPMessage> headers_{nullptr};
     std::unique_ptr<folly::IOBuf> body_{nullptr};
+    proxygen::HTTPTransaction* txn_;
   };
   
   //void sendError(const std::string &what) noexcept;
@@ -134,7 +149,6 @@ private:
   void abort_downstream() noexcept;
 
   ec_prv::url_shortener::db::ShortenedUrlsDatabase *const db_;
-  const uint64_t *highwayhash_key_;
   const ec_prv::url_shortener::app_config::ReadOnlyAppConfig *const ro_app_config_;
   std::string_view captcha_service_api_key_;
   std::unique_ptr<proxygen::HTTPMessage> request_headers_to_captcha_service_;
@@ -142,7 +156,6 @@ private:
   std::unique_ptr<proxygen::HTTPMessage> captcha_service_response_headers_;
   proxygen::HTTPConnector connector_;
   CaptchaServiceHTTPTransactionHandler txn_handler_;
-  std::unique_ptr<SessionWrapper> session_;
   folly::HHWheelTimer *timer_;
   proxygen::HTTPTransaction *txn_{nullptr};
   bool client_terminated_{false};

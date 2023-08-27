@@ -14,3 +14,4 @@ build
 .env
 .envrc
 .cache/
+build-release/

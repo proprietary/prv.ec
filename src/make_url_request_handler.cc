@@ -19,6 +19,7 @@
 #include <folly/io/async/SSLContext.h>
 #include <folly/io/async/SSLOptions.h>
 #include <proxygen/lib/http/HTTPCommonHeaders.h>
+#include <proxygen/lib/http/session/HTTPUpstreamSession.h>
 #include <proxygen/lib/utils/URL.h>
 
 #include "url_shortening.h"
@@ -29,9 +30,8 @@ namespace web {
 
 MakeUrlRequestHandler::MakeUrlRequestHandler(db::ShortenedUrlsDatabase *db,
                                              folly::HHWheelTimer *timer,
-					     const app_config::ReadOnlyAppConfig *const ro_app_config,
-                                             const uint64_t *highwayhash_key)
-  :db_(db), ro_app_config_(ro_app_config), highwayhash_key_(highwayhash_key), txn_handler_(*this), connector_(this, timer) {
+					     const app_config::ReadOnlyAppConfig *const ro_app_config)
+  :db_(db), ro_app_config_(ro_app_config), txn_handler_(*this), connector_(this, timer) {
   DLOG(INFO) << "created new request handler for make url";
 }
 
@@ -60,7 +60,6 @@ auto MakeUrlRequestHandler::query_captcha_service(const std::string &captcha_use
   auto evb = folly::EventBaseManager::get()->getEventBase();
   // TODO(zds): use a connection pool here
   const folly::SocketOptionMap opts { {{SOL_SOCKET, SO_REUSEADDR}, 1 }};
-  // downstream_->pauseIngress();
   if (external_service_url.isSecure()) {
     ssl_context_ = std::make_shared<folly::SSLContext>();
     ssl_context_->setOptions(SSL_OP_NO_COMPRESSION);
@@ -70,20 +69,19 @@ auto MakeUrlRequestHandler::query_captcha_service(const std::string &captcha_use
     std::list<std::string> next_proto_list;
     folly::splitTo<std::string>(',', "h2,h2-14,spdy/3.1,spdy/3,http/1.1", std::inserter(next_proto_list, next_proto_list.begin()));
     ssl_context_->setAdvertisedNextProtocols(next_proto_list);
+    downstream_->pauseIngress();
     connector_.connectSSL(evb, addr, ssl_context_, nullptr, std::chrono::milliseconds(1000), opts, folly::AsyncSocket::anyAddress(), external_service_url.getHost());
   } else {
+    downstream_->pauseIngress();
     connector_.connect(evb, addr, std::chrono::milliseconds(1000), opts);
   }
   auto f = captcha_service_result_promise_.getFuture();
   return f;
 }
 
-
 void MakeUrlRequestHandler::connectSuccess(proxygen::HTTPUpstreamSession *session) {
-  session_ = std::make_unique<SessionWrapper>(session);
   txn_ = session->newTransaction(&txn_handler_);
   DLOG(INFO) << "Sending http client request to: " << request_headers_to_captcha_service_->getURL();
-  request_headers_to_captcha_service_->dumpMessage(google::INFO);
   CHECK(request_headers_to_captcha_service_) << "request headers to captcha service cannot be null";
   txn_->sendHeaders(*request_headers_to_captcha_service_);
   if (request_body_to_captcha_service_) {

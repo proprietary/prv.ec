@@ -120,6 +120,12 @@ auto ShortenedUrlsDatabase::get(std::string_view shortened_url) noexcept
   return dst;
   // TODO(zds): pass slice directly from memory to web server
 }
+
+auto ShortenedUrlsDatabase::get_fast(std::string *buf, std::string_view short_url) noexcept -> bool {
+  rocksdb::Status s = rocksdb_->Get(read_options_, rocksdb_->DefaultColumnFamily(), short_url, buf);
+  return s.ok();
+}
+
 } // namespace db
 } // namespace url_shortener
 } // namespace ec_prv
