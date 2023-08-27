@@ -1,16 +1,16 @@
 #ifndef _INCLUDE_EC_PRV_URL_SHORTENER_WEB_STATIC_HANDLER_H
 #define _INCLUDE_EC_PRV_URL_SHORTENER_WEB_STATIC_HANDLER_H
 
+#include <filesystem>
 #include <folly/File.h>
-#include <folly/io/IOBufQueue.h>
-#include <folly/io/IOBuf.h>
 #include <folly/Memory.h>
 #include <folly/container/F14Map.h>
+#include <folly/io/IOBuf.h>
+#include <folly/io/IOBufQueue.h>
 #include <memory>
 #include <proxygen/httpserver/RequestHandler.h>
 #include <string>
 #include <string_view>
-#include <filesystem>
 
 namespace proxygen {
 class ResponseHandler;
@@ -28,10 +28,12 @@ public:
   // TODO(zds): reject files from cache if they are too large
   // TODO(zds): test this with non-textual, binary data files
 
-  auto exists(const std::filesystem::path&) const -> bool;
-  auto get(const std::filesystem::path&) const -> std::string_view;
-  auto set(const std::filesystem::path &file_path, std::string_view body) -> void;
-  auto append_data(const std::filesystem::path &file_path, std::unique_ptr<folly::IOBuf> buf) -> void;
+  auto exists(const std::filesystem::path &) const -> bool;
+  auto get(const std::filesystem::path &) const -> std::string_view;
+  auto set(const std::filesystem::path &file_path, std::string_view body)
+      -> void;
+  auto append_data(const std::filesystem::path &file_path,
+                   std::unique_ptr<folly::IOBuf> buf) -> void;
 
 private:
   folly::F14NodeMap<std::string, std::string> cache_;
@@ -41,8 +43,10 @@ private:
 
 class StaticHandler : public proxygen::RequestHandler {
 public:
-  explicit StaticHandler(std::weak_ptr<StaticFileCache> cache, const std::filesystem::path& doc_root, std::string_view which_file_to_serve);
-  
+  explicit StaticHandler(std::weak_ptr<StaticFileCache> cache,
+                         const std::filesystem::path &doc_root,
+                         std::string_view which_file_to_serve);
+
   void
   onRequest(std::unique_ptr<proxygen::HTTPMessage> request) noexcept override;
 
@@ -60,19 +64,23 @@ public:
 
   void onEgressResumed() noexcept override;
 
-  static auto expected_file_path(const proxygen::HTTPMessage* request, const std::filesystem::path& doc_root) noexcept -> std::filesystem::path;
+  static auto expected_file_path(const proxygen::HTTPMessage *request,
+                                 const std::filesystem::path &doc_root) noexcept
+      -> std::filesystem::path;
+
 private:
   void read_file(folly::EventBase *evb);
   bool check_for_completion();
   void sendBadRequestError(const std::string &what) noexcept;
   void sendError(const std::string &what) noexcept;
 
-  std::filesystem::path requested_file_path_; // this is for inserting file bodies into cache
+  std::filesystem::path
+      requested_file_path_; // this is for inserting file bodies into cache
   std::unique_ptr<folly::File> file_;
   bool read_file_scheduled_{false};
   std::atomic<bool> paused_{false};
   bool finished_{false};
-  const std::filesystem::path& doc_root_;
+  const std::filesystem::path &doc_root_;
   const std::string_view which_file_to_serve_;
   std::weak_ptr<StaticFileCache> cache_;
 };

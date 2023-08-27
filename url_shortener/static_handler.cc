@@ -20,10 +20,13 @@ bool validate_static_file_request_path(std::string_view input) {
          input.find("..") == std::string_view::npos;
 }
 
-auto file_is_under_dir(const std::filesystem::path& this_file, const std::filesystem::path& is_under_this_dir) -> bool {
+auto file_is_under_dir(const std::filesystem::path &this_file,
+                       const std::filesystem::path &is_under_this_dir) -> bool {
   auto parent_it = is_under_this_dir.begin();
   auto this_file_it = this_file.begin();
-  for (; parent_it != is_under_this_dir.end() && this_file_it != this_file.end(); ++parent_it, ++this_file_it) {
+  for (;
+       parent_it != is_under_this_dir.end() && this_file_it != this_file.end();
+       ++parent_it, ++this_file_it) {
     if (*parent_it != *this_file_it) {
       return false;
     }
@@ -32,19 +35,29 @@ auto file_is_under_dir(const std::filesystem::path& this_file, const std::filesy
 }
 } // namespace
 
-StaticHandler::StaticHandler(std::weak_ptr<StaticFileCache> cache, const std::filesystem::path& doc_root, std::string_view which_file_to_serve)
-  : cache_(cache), doc_root_(doc_root), which_file_to_serve_(which_file_to_serve) {}
+StaticHandler::StaticHandler(std::weak_ptr<StaticFileCache> cache,
+                             const std::filesystem::path &doc_root,
+                             std::string_view which_file_to_serve)
+    : cache_(cache), doc_root_(doc_root),
+      which_file_to_serve_(which_file_to_serve) {}
 
-  auto StaticHandler::expected_file_path(const proxygen::HTTPMessage* request, const std::filesystem::path& doc_root) noexcept -> std::filesystem::path {
-    // remove "/static/" prefix from request path
-    //auto req_path = request->getPathAsStringPiece();
-    auto req_path = request->getPath();
-    auto p = req_path.rfind(static_files_url_prefix, 0);
-    // "/static/" is not found as a prefix or at all
-    if (p != 0) { return {}; }
-    std::filesystem::path dst = doc_root / std::filesystem::path{req_path.begin() + static_files_url_prefix.size(), req_path.end()};
-    return dst;
+auto StaticHandler::expected_file_path(
+    const proxygen::HTTPMessage *request,
+    const std::filesystem::path &doc_root) noexcept -> std::filesystem::path {
+  // remove "/static/" prefix from request path
+  // auto req_path = request->getPathAsStringPiece();
+  auto req_path = request->getPath();
+  auto p = req_path.rfind(static_files_url_prefix, 0);
+  // "/static/" is not found as a prefix or at all
+  if (p != 0) {
+    return {};
   }
+  std::filesystem::path dst =
+      doc_root /
+      std::filesystem::path{req_path.begin() + static_files_url_prefix.size(),
+                            req_path.end()};
+  return dst;
+}
 
 void StaticHandler::onRequest(
     std::unique_ptr<proxygen::HTTPMessage> request) noexcept {
@@ -56,18 +69,23 @@ void StaticHandler::onRequest(
     sendBadRequestError("malicious input detected");
     return;
   }
-  // Check a reconstructed path from the request headers is beneath the specified doc root. Otherwise, request is in error or malicious.
+  // Check a reconstructed path from the request headers is beneath the
+  // specified doc root. Otherwise, request is in error or malicious.
   CHECK(request.get() != nullptr);
-  auto file_path_should_be = StaticHandler::expected_file_path(request.get(), doc_root_);
+  auto file_path_should_be =
+      StaticHandler::expected_file_path(request.get(), doc_root_);
   if (!file_is_under_dir(file_path_should_be, doc_root_)) {
-      sendBadRequestError("malicious input detected in request for static asset");
-      return;
+    sendBadRequestError("malicious input detected in request for static asset");
+    return;
   }
   // cache lookup here; early exit possible
   auto this_cache = cache_.lock();
   if (this_cache->exists(file_path_should_be)) {
     auto cached_file = this_cache->get(file_path_should_be);
-    proxygen::ResponseBuilder(downstream_).status(200, "OK").body(cached_file).sendWithEOM();
+    proxygen::ResponseBuilder(downstream_)
+        .status(200, "OK")
+        .body(cached_file)
+        .sendWithEOM();
     return;
   }
   try {
@@ -105,17 +123,15 @@ void StaticHandler::read_file(folly::EventBase *evb) {
       file_.reset();
       VLOG(4) << "File EOF found. Sending HTTP response.";
       evb->runInEventBaseThread(
-          [this] {
-	    proxygen::ResponseBuilder(downstream_).sendWithEOM();
-	  });
+          [this] { proxygen::ResponseBuilder(downstream_).sendWithEOM(); });
     } else {
       buf.postallocate(rc);
       evb->runInEventBaseThread([this, body = buf.move()]() mutable {
-	// saving file body to cache
-	CHECK(!requested_file_path_.empty());
-	auto this_cache = cache_.lock();
-	this_cache->append_data(requested_file_path_, body->clone());
-	// stream response
+        // saving file body to cache
+        CHECK(!requested_file_path_.empty());
+        auto this_cache = cache_.lock();
+        this_cache->append_data(requested_file_path_, body->clone());
+        // stream response
         proxygen::ResponseBuilder(downstream_).body(std::move(body)).send();
       });
     }
@@ -200,29 +216,37 @@ auto StaticFileCache::get(const std::filesystem::path &file_path) const
   return it->second;
 }
 
-auto StaticFileCache::exists(const std::filesystem::path &file_path) const -> bool {
+auto StaticFileCache::exists(const std::filesystem::path &file_path) const
+    -> bool {
   return cache_.contains(file_path.string());
 }
 
-auto StaticFileCache::append_data(const std::filesystem::path &file_path, std::unique_ptr<folly::IOBuf> buf) -> void {
+auto StaticFileCache::append_data(const std::filesystem::path &file_path,
+                                  std::unique_ptr<folly::IOBuf> buf) -> void {
   auto it = cache_.find(file_path.string());
   if (it == cache_.end()) {
-    DLOG(INFO) << "Attempt to stream file data into the cache for a file that is not in the cache. "
-	       << "It should be in the cache for this function to be called, so something is wrong.";
+    DLOG(INFO) << "Attempt to stream file data into the cache for a file that "
+                  "is not in the cache. "
+               << "It should be in the cache for this function to be called, "
+                  "so something is wrong.";
     return;
   }
-  std::string& v = it->second;
+  std::string &v = it->second;
   // TODO(zds): obviate this kind of unsafe casting
-  v.append(reinterpret_cast<const char*>(buf->data()), buf->length());
+  v.append(reinterpret_cast<const char *>(buf->data()), buf->length());
 }
 
-auto StaticFileCache::set(const std::filesystem::path &file_path, std::string_view body) -> void {
-  auto res = cache_.emplace(std::piecewise_construct, std::forward_as_tuple(file_path.string()), std::forward_as_tuple(std::string{body}));
+auto StaticFileCache::set(const std::filesystem::path &file_path,
+                          std::string_view body) -> void {
+  auto res = cache_.emplace(std::piecewise_construct,
+                            std::forward_as_tuple(file_path.string()),
+                            std::forward_as_tuple(std::string{body}));
   if (!res.second) {
-    DLOG(INFO) << "no insertion happend when inserting into static file cache the path \"" << file_path << "\" with body: \"" << body << "\"";
+    DLOG(INFO) << "no insertion happend when inserting into static file cache "
+                  "the path \""
+               << file_path << "\" with body: \"" << body << "\"";
   }
 }
-
 
 } // namespace web
 } // namespace url_shortener

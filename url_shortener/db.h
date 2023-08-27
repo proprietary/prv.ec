@@ -32,7 +32,7 @@ private:
   std::filesystem::path path_;
   explicit ShortenedUrlsDatabase(rocksdb::DB *rocksdb,
                                  std::filesystem::path path)
-    : path_(path), rocksdb_(rocksdb), read_options_(rocksdb::ReadOptions()) {}
+      : path_(path), rocksdb_(rocksdb), read_options_(rocksdb::ReadOptions()) {}
   ShortenedUrlsDatabase() = default;
 
 public:
@@ -42,7 +42,7 @@ public:
       -> std::variant<std::monostate, UrlShorteningDbError>;
   auto get(std::string_view shortened_url) noexcept
       -> std::variant<std::string, UrlShorteningDbError>;
-  auto get_fast(std::string* buf, std::string_view short_url) noexcept -> bool;
+  auto get_fast(std::string *buf, std::string_view short_url) noexcept -> bool;
 };
 } // namespace db
 } // namespace url_shortener

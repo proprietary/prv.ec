@@ -5,9 +5,8 @@
 #include <proxygen/httpserver/RequestHandler.h>
 #include <string>
 
-#include "db.h"
 #include "app_config.h"
-
+#include "db.h"
 
 namespace ec_prv {
 namespace url_shortener {
@@ -20,9 +19,11 @@ static constexpr size_t max_long_url_length = 1000;
 // slugs to long URLs, then serves a 301 HTTP response.
 class UrlRedirectHandler : public proxygen::RequestHandler {
 public:
-  explicit UrlRedirectHandler(std::string&& short_url,
+  explicit UrlRedirectHandler(
+      std::string &&short_url,
       ::ec_prv::url_shortener::db::ShortenedUrlsDatabase *db,
-      const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig *const ro_app_config);
+      const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig
+          *const ro_app_config);
 
   void
   onRequest(std::unique_ptr<proxygen::HTTPMessage> request) noexcept override;
@@ -39,7 +40,8 @@ public:
 
 private:
   ::ec_prv::url_shortener::db::ShortenedUrlsDatabase *const db_;
-  const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig *const ro_app_config_;
+  const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig
+      *const ro_app_config_;
 
   std::string buf_;
   std::string short_url_;

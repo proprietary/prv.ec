@@ -1,9 +1,9 @@
 #include <chrono>
 #include <folly/Memory.h>
-#include <folly/init/Init.h>
 #include <folly/ThreadLocal.h>
 #include <folly/executors/CPUThreadPoolExecutor.h>
 #include <folly/executors/GlobalExecutor.h>
+#include <folly/init/Init.h>
 #include <folly/io/async/EventBaseManager.h>
 #include <folly/portability/GFlags.h>
 #include <folly/portability/Unistd.h>
@@ -19,9 +19,9 @@
 #include "url_shortening.h"
 
 // request handlers
+#include "make_url_request_handler.h"
 #include "static_handler.h"
 #include "url_shortener_handler.h"
-#include "make_url_request_handler.h"
 
 DEFINE_int32(http_port, 11000, "Port to listen on with HTTP protocol");
 DEFINE_int32(spdy_port, 11001, "Port to listen on with SPDY protocol");
@@ -51,18 +51,19 @@ public:
 class MyRequestHandlerFactory : public proxygen::RequestHandlerFactory {
 public:
   MyRequestHandlerFactory(
-			  const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig *app_state,
-			  std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db)
-    : app_state_(app_state), db_(db) {
-  }
+      const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig *app_state,
+      std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db)
+      : app_state_(app_state), db_(db) {}
   void onServerStart(folly::EventBase *evb) noexcept override {
-    static_file_cache_.reset(new ::ec_prv::url_shortener::web::StaticFileCache{});
+    static_file_cache_.reset(
+        new ::ec_prv::url_shortener::web::StaticFileCache{});
     timer_ = folly::HHWheelTimer::newTimer(
-					       evb,
-					       std::chrono::milliseconds(folly::HHWheelTimer::DEFAULT_TICK_INTERVAL),
-					       folly::AsyncTimeout::InternalEnum::NORMAL, std::chrono::milliseconds(5000));
+        evb,
+        std::chrono::milliseconds(folly::HHWheelTimer::DEFAULT_TICK_INTERVAL),
+        folly::AsyncTimeout::InternalEnum::NORMAL,
+        std::chrono::milliseconds(5000));
   }
- void onServerStop() noexcept override {
+  void onServerStop() noexcept override {
     static_file_cache_.reset();
     timer_.reset();
   }
@@ -75,22 +76,28 @@ public:
       // serve home page
       DLOG(INFO) << "Detected route \"/\". Serving home page.";
       // use StaticHandler to serve a specific file
-      return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_, app_state_->static_file_doc_root, "index.html");
-    } else if (path.rfind("/static/", 0) == 0 && method == proxygen::HTTPMethod::GET) {
+      return new ::ec_prv::url_shortener::web::StaticHandler(
+          static_file_cache_, app_state_->static_file_doc_root, "index.html");
+    } else if (path.rfind("/static/", 0) == 0 &&
+               method == proxygen::HTTPMethod::GET) {
       // serve static files
       DLOG(INFO) << "Route \"static\" found. Serving static files.";
-      return new ::ec_prv::url_shortener::web::StaticHandler(static_file_cache_, app_state_->static_file_doc_root, {}); 
+      return new ::ec_prv::url_shortener::web::StaticHandler(
+          static_file_cache_, app_state_->static_file_doc_root, {});
     } else if (path.rfind("/api/", 0) == 0) {
       DLOG(INFO) << "Route \"/api/*\" found.";
       if (path == "/api/v1/create") {
-	return new ::ec_prv::url_shortener::web::MakeUrlRequestHandler(db_.get(), timer_.get(), app_state_);
+        return new ::ec_prv::url_shortener::web::MakeUrlRequestHandler(
+            db_.get(), timer_.get(), app_state_);
       } else {
-	return new NotFoundHandler{};
+        return new NotFoundHandler{};
       }
     }
-    std::string_view parsed = ec_prv::url_shortener::url_shortening::parse_out_request_str(path);
+    std::string_view parsed =
+        ec_prv::url_shortener::url_shortening::parse_out_request_str(path);
     if (parsed.length() > 0) {
-      return new ::ec_prv::url_shortener::web::UrlRedirectHandler(std::string{parsed}, db_.get(), app_state_);
+      return new ::ec_prv::url_shortener::web::UrlRedirectHandler(
+          std::string{parsed}, db_.get(), app_state_);
     }
     return new NotFoundHandler();
   }
@@ -99,28 +106,37 @@ private:
   const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig
       *app_state_; // TODO: make this a folly::ThreadLocalPtr
   std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db_;
-  // folly::ThreadLocalPtr<::ec_prv::url_shortener::web::StaticFileCache> static_file_cache_{nullptr};
-  std::shared_ptr<::ec_prv::url_shortener::web::StaticFileCache> static_file_cache_{nullptr};
+  // folly::ThreadLocalPtr<::ec_prv::url_shortener::web::StaticFileCache>
+  // static_file_cache_{nullptr};
+  std::shared_ptr<::ec_prv::url_shortener::web::StaticFileCache>
+      static_file_cache_{nullptr};
   folly::HHWheelTimer::UniquePtr timer_;
 };
 
 } // namespace
 
 int main(int argc, char *argv[]) {
-  //gflags::ParseCommandLineFlags(&argc, &argv, true);
-  //google::InitGoogleLogging(argv[0]);
-  //google::InstallFailureSignalHandler();
+  // gflags::ParseCommandLineFlags(&argc, &argv, true);
+  // google::InitGoogleLogging(argv[0]);
+  // google::InstallFailureSignalHandler();
 
-  folly::Init _folly_init {&argc, &argv, false};
+  folly::Init _folly_init{&argc, &argv, false};
 
-  std::unique_ptr<::ec_prv::url_shortener::app_config::ReadOnlyAppConfig, ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::ReadOnlyAppConfigDeleter> ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::new_from_env();
+  std::unique_ptr<::ec_prv::url_shortener::app_config::ReadOnlyAppConfig,
+                  ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::
+                      ReadOnlyAppConfigDeleter>
+      ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::
+          new_from_env();
 
   std::vector<proxygen::HTTPServer::IPConfig> IPs = {
-      {folly::SocketAddress(ro_app_state->web_server_bind_host, ro_app_state->web_server_port, true),
+      {folly::SocketAddress(ro_app_state->web_server_bind_host,
+                            ro_app_state->web_server_port, true),
        proxygen::HTTPServer::Protocol::HTTP},
-      {folly::SocketAddress(ro_app_state->web_server_bind_host, FLAGS_spdy_port, true),
+      {folly::SocketAddress(ro_app_state->web_server_bind_host, FLAGS_spdy_port,
+                            true),
        proxygen::HTTPServer::Protocol::SPDY},
-      {folly::SocketAddress(ro_app_state->web_server_bind_host, FLAGS_h2_port, true),
+      {folly::SocketAddress(ro_app_state->web_server_bind_host, FLAGS_h2_port,
+                            true),
        proxygen::HTTPServer::Protocol::HTTP2},
   };
   // TODO(zds): add support for http3?
@@ -152,7 +168,7 @@ int main(int argc, char *argv[]) {
   options.enableContentCompression = false;
   options.handlerFactories =
       proxygen::RequestHandlerChain()
-    .addThen<MyRequestHandlerFactory>(ro_app_state.get(), db)
+          .addThen<MyRequestHandlerFactory>(ro_app_state.get(), db)
           .build();
   // Increase the default flow control to 1MB/10MB
   options.initialReceiveWindow = uint32_t(1 << 20);

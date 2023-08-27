@@ -2,9 +2,9 @@
 #define _INCLUDE_EC_PRV_URL_SHORTENER_APP_CONFIG_H
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 #include <string>
-#include <filesystem>
 
 namespace ec_prv {
 namespace url_shortener {
@@ -30,12 +30,15 @@ struct ReadOnlyAppConfig {
   // host to bind web server to, e.g., localhost, 0.0.0.0
   std::string web_server_bind_host{"127.0.0.1"};
 
-  std::filesystem::path trusted_certificates_path{"/etc/ssl/certs/ca-certificates.crt"};
+  std::filesystem::path trusted_certificates_path{
+      "/etc/ssl/certs/ca-certificates.crt"};
 
   std::string captcha_service_api_key;
 
-  // User agent the server uses when initiating requests to external services (e.g., like reCAPTCHA)
-  std::string server_user_agent{"prv.ec - an open source url shortener web service"};
+  // User agent the server uses when initiating requests to external services
+  // (e.g., like reCAPTCHA)
+  std::string server_user_agent{
+      "prv.ec - an open source url shortener web service"};
 
   struct ReadOnlyAppConfigDeleter {
     void operator()(ReadOnlyAppConfig *that) noexcept;
