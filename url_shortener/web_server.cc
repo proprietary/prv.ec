@@ -78,6 +78,12 @@ public:
     std::string_view path{msg->getPathAsStringPiece().begin(),
                           msg->getPathAsStringPiece().end()};
     auto method = msg->getMethod();
+    ::ec_prv::url_shortener::web::FrontendHandler *maybe_frontend =
+        ::ec_prv::url_shortener::web::FrontendHandler::lookup(
+            frontend_dir_cache_, path);
+    if (maybe_frontend != nullptr) {
+      return maybe_frontend;
+    }
     if (path.starts_with("/static/") && method == proxygen::HTTPMethod::GET) {
       // serve static files
       DLOG(INFO) << "Route \"static\" found. Serving static files.";
@@ -92,11 +98,6 @@ public:
       } else {
         return new NotFoundHandler{};
       }
-    } else if (method == proxygen::HTTPMethod::GET &&
-               frontend_dir_cache_->contains(path.substr(1))) {
-      // serve frontend directory quickly from cache
-      return new ::ec_prv::url_shortener::web::FrontendHandler{
-          frontend_dir_cache_};
     } else if (std::string_view parsed =
                    ec_prv::url_shortener::url_shortening::parse_out_request_str(
                        path);

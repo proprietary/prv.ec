@@ -54,9 +54,21 @@ public:
 
   void onEgressResumed() noexcept override;
 
+  static FrontendHandler *
+  lookup(const folly::F14NodeMap<std::string, std::vector<uint8_t>> *const c,
+         std::string_view path);
+
 private:
   const folly::F14NodeMap<std::string, std::vector<uint8_t>>
       *const frontend_dir_cache_;
+
+  // shortcut where we do half the work upstream
+  explicit FrontendHandler(
+      const folly::F14NodeMap<std::string, std::vector<uint8_t>>
+          *const frontend_dir_cache,
+      const std::vector<uint8_t> *const prefound_data);
+
+  const std::vector<uint8_t> *const prefound_data_{nullptr};
 };
 } // namespace web
 } // namespace url_shortener

@@ -2,6 +2,7 @@
 #include <filesystem>
 #include <folly/GLog.h>
 #include <folly/io/IOBuf.h>
+#include <optional>
 #include <proxygen/httpserver/RequestHandler.h>
 #include <proxygen/httpserver/ResponseBuilder.h>
 #include <stdint.h>
@@ -57,9 +58,47 @@ build_frontend_dir_cache(const std::filesystem::path &frontend_doc_root) {
   return std::move(dst);
 }
 
+FrontendHandler *FrontendHandler::lookup(
+    const folly::F14NodeMap<std::string, std::vector<uint8_t>> *const c,
+    std::string_view path) {
+  if (path.front() != '/') {
+    return nullptr;
+  }
+  folly::F14NodeMap<std::string, std::vector<uint8_t>>::const_iterator
+      cache_req;
+  if (path.back() == '/') {
+    cache_req = c->find(std::string{path.substr(1)} + "index.html");
+  } else {
+    cache_req = c->find(path.substr(1));
+  }
+  if (cache_req == c->end()) {
+    return nullptr;
+  }
+  DLOG(INFO) << "found frontend file " << path;
+  const std::vector<uint8_t> *data = &cache_req->second;
+  CHECK(data != nullptr);
+  return new FrontendHandler(c, data);
+}
+
+FrontendHandler::FrontendHandler(
+    const folly::F14NodeMap<std::string, std::vector<uint8_t>>
+        *const frontend_dir_cache,
+    const std::vector<uint8_t> *const prefound_data)
+    : frontend_dir_cache_(frontend_dir_cache), prefound_data_(prefound_data) {}
+
 void FrontendHandler::onRequest(
     std::unique_ptr<proxygen::HTTPMessage> request) noexcept {
-  // assuming everything was checked upstream
+  // assuming everything was checked upstream through a shortcut routine
+  // `lookup`
+  if (prefound_data_ != nullptr) {
+    proxygen::ResponseBuilder(downstream_)
+        .status(200, "OK")
+        .body(folly::IOBuf::wrapBuffer(prefound_data_->data(),
+                                       prefound_data_->size()))
+        .sendWithEOM();
+    return;
+  }
+  // check preconditions normally
   DLOG_IF(ERROR, request->getMethod() != proxygen::HTTPMethod::GET)
       << "FrontendHandler only accepts GET requests. Must be checked before "
          "invoking FrontendHandler.";
@@ -80,8 +119,18 @@ void FrontendHandler::onRequest(
         .sendWithEOM();
     return;
   }
+  folly::F14NodeMap<std::string, std::vector<uint8_t>>::const_iterator
+      cache_req;
   auto path_identifier = path.substr(1);
-  auto cache_req = frontend_dir_cache_->find(path_identifier);
+  // special case: trailing slash means look for index.html
+  if (path_identifier.back() == '/') {
+    VLOG(4) << "path requested has a trailing slash: " << path_identifier;
+    cache_req =
+        frontend_dir_cache_->find(std::string{path_identifier} + "index.html");
+  } else {
+    // otherwise, just a regular file
+    cache_req = frontend_dir_cache_->find(path_identifier);
+  }
   if (cache_req == frontend_dir_cache_->end()) {
     DLOG(ERROR) << "Did not find path \"" << path_identifier
                 << "\" in cache for frontend files";
