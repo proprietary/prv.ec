@@ -66,6 +66,8 @@ auto MakeUrlRequestHandler::query_captcha_service(
       proxygen::HTTPHeaderCode::HTTP_HEADER_CONTENT_TYPE,
       "application/x-www-form-urlencoded");
   request_headers_to_captcha_service_->setHTTPVersion(1, 1);
+  // TODO(zds): make function to uri escape or get folly's version to compile
+  
   // See: https://developers.google.com/recaptcha/docs/verify
   // std::string captcha_service_request_body =
   // folly::sformat("secret={}&response={}",

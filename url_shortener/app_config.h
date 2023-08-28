@@ -20,6 +20,8 @@ struct ReadOnlyAppConfig {
 
   std::filesystem::path static_file_doc_root;
 
+  std::filesystem::path frontend_doc_root;
+
   const char *static_file_request_path_prefix{"/static/"};
 
   // This is the base URL for your URL shortening service, after which

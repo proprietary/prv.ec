@@ -24,5 +24,5 @@ target_compile_features(url_shortening PUBLIC cxx_std_20)
 target_link_libraries(url_shortening PUBLIC highwayhash Folly::folly RocksDB::rocksdb)
 
 
-add_executable(web_server url_shortener/web_server.cc url_shortener/url_shortener_handler.h url_shortener/url_shortener_handler.cc url_shortener/static_handler.h url_shortener/static_handler.cc url_shortener/make_url_request_handler.h url_shortener/make_url_request_handler.cc)
+add_executable(web_server url_shortener/web_server.cc url_shortener/url_shortener_handler.h url_shortener/url_shortener_handler.cc url_shortener/static_handler.h url_shortener/static_handler.cc url_shortener/make_url_request_handler.h url_shortener/make_url_request_handler.cc url_shortener/frontend_handler.h url_shortener/frontend_handler.cc)
 target_link_libraries(web_server PUBLIC proxygen::proxygen proxygen::proxygenhttpserver Folly::folly url_shortening app_config)

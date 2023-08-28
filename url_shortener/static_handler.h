@@ -11,12 +11,10 @@
 #include <folly/io/IOBufQueue.h>
 #include <memory>
 #include <proxygen/httpserver/RequestHandler.h>
+#include <proxygen/httpserver/ResponseHandler.h>
 #include <string>
 #include <string_view>
 
-namespace proxygen {
-class ResponseHandler;
-}
 
 namespace ec_prv {
 namespace url_shortener {
@@ -46,8 +44,7 @@ private:
 class StaticHandler : public proxygen::RequestHandler {
 public:
   explicit StaticHandler(std::weak_ptr<StaticFileCache> cache,
-                         const std::filesystem::path &doc_root,
-                         std::string_view which_file_to_serve);
+                         const std::filesystem::path &doc_root);
 
   void
   onRequest(std::unique_ptr<proxygen::HTTPMessage> request) noexcept override;
@@ -83,7 +80,6 @@ private:
   std::atomic<bool> paused_{false};
   bool finished_{false};
   const std::filesystem::path &doc_root_;
-  const std::string_view which_file_to_serve_;
   std::weak_ptr<StaticFileCache> cache_;
 };
 } // namespace web

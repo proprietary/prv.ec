@@ -39,10 +39,8 @@ auto file_is_under_dir(const std::filesystem::path &this_file,
 } // namespace
 
 StaticHandler::StaticHandler(std::weak_ptr<StaticFileCache> cache,
-                             const std::filesystem::path &doc_root,
-                             std::string_view which_file_to_serve)
-    : cache_(cache), doc_root_(doc_root),
-      which_file_to_serve_(which_file_to_serve) {}
+                             const std::filesystem::path &doc_root)
+    : cache_(cache), doc_root_(doc_root) {}
 
 auto StaticHandler::expected_file_path(
     const proxygen::HTTPMessage *request,
