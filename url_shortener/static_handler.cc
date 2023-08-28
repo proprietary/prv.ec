@@ -1,9 +1,8 @@
 #include "static_handler.h"
 
-#include <vector>
 #include <algorithm>
-#include <folly/Range.h>
 #include <folly/FileUtil.h>
+#include <folly/Range.h>
 #include <folly/executors/GlobalExecutor.h>
 #include <folly/io/async/EventBaseManager.h>
 #include <glog/logging.h>
@@ -11,6 +10,7 @@
 #include <proxygen/httpserver/ResponseBuilder.h>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace ec_prv {
 namespace url_shortener {
@@ -57,14 +57,17 @@ auto StaticHandler::expected_file_path(
       doc_root /
       std::filesystem::path{req_path.begin() + static_files_url_prefix.size(),
                             req_path.end()};
-  DLOG(INFO) << "Resolving URL request \"" << request->getPath() << "\" as file path \"" << dst.string() << "\"";
+  DLOG(INFO) << "Resolving URL request \"" << request->getPath()
+             << "\" as file path \"" << dst.string() << "\"";
   return dst;
 }
 
 void StaticHandler::onRequest(
     std::unique_ptr<proxygen::HTTPMessage> request) noexcept {
   if (request->getMethod() != proxygen::HTTPMethod::GET) {
-    proxygen::ResponseBuilder(downstream_).status(405, "Method Not Allowed").sendWithEOM();
+    proxygen::ResponseBuilder(downstream_)
+        .status(405, "Method Not Allowed")
+        .sendWithEOM();
     return;
   }
   if (!validate_static_file_request_path(request->getPath())) {
@@ -85,10 +88,13 @@ void StaticHandler::onRequest(
   // cache lookup here; early exit possible
   auto this_cache = cache_.lock();
   if (this_cache->exists(file_path_should_be)) {
-    DLOG(INFO) << "Found " << file_path_should_be << " in the cache. Exiting early!";
-     auto cached_file = this_cache->get(file_path_should_be);
+    DLOG(INFO) << "Found " << file_path_should_be
+               << " in the cache. Exiting early!";
+    auto cached_file = this_cache->get(file_path_should_be);
     proxygen::ResponseBuilder(downstream_)
-        .status(200, "OK").body(std::move(cached_file)).sendWithEOM();
+        .status(200, "OK")
+        .body(std::move(cached_file))
+        .sendWithEOM();
     return;
   }
   try {
@@ -131,7 +137,8 @@ void StaticHandler::read_file(folly::EventBase *evb) {
         // saving file body to cache
         CHECK(!requested_file_path_.empty());
         auto this_cache = cache_.lock();
-        this_cache->append_data(requested_file_path_, body->coalesce());;
+        this_cache->append_data(requested_file_path_, body->coalesce());
+        ;
         // stream response
         proxygen::ResponseBuilder(downstream_).body(std::move(body)).send();
       });
@@ -209,7 +216,7 @@ void StaticHandler::sendBadRequestError(const std::string &what) noexcept {
 }
 
 auto StaticFileCache::get_copy(const std::filesystem::path &file_path) const
-  -> std::vector<unsigned char> {
+    -> std::vector<unsigned char> {
   auto it = cache_.find(file_path.string());
   if (it == cache_.end()) {
     return {};
@@ -233,10 +240,12 @@ auto StaticFileCache::append_data(const std::filesystem::path &file_path,
     std::vector<unsigned char> data;
     data.reserve(buf.size());
     data.insert(data.end(), buf.begin(), buf.end());
-    cache_.emplace(std::piecewise_construct, std::forward_as_tuple(file_path.string()), std::forward_as_tuple(std::move(data)));
+    cache_.emplace(std::piecewise_construct,
+                   std::forward_as_tuple(file_path.string()),
+                   std::forward_as_tuple(std::move(data)));
     return;
   }
-  std::vector<unsigned char>& data = it->second;
+  std::vector<unsigned char> &data = it->second;
   data.insert(data.end(), buf.begin(), buf.end());
 }
 
@@ -257,12 +266,13 @@ auto StaticFileCache::set(const std::filesystem::path &file_path,
   }
 }
 
-auto StaticFileCache::get(const std::filesystem::path &file_path) const -> std::unique_ptr<folly::IOBuf> {
+auto StaticFileCache::get(const std::filesystem::path &file_path) const
+    -> std::unique_ptr<folly::IOBuf> {
   auto it = cache_.find(file_path.string());
   if (it == cache_.end()) {
     return {};
   }
-  const std::vector<unsigned char>& underlying = it->second;
+  const std::vector<unsigned char> &underlying = it->second;
   return folly::IOBuf::wrapBuffer(underlying.data(), underlying.size());
 }
 

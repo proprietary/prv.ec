@@ -3,8 +3,10 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <folly/IPAddress.h>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace ec_prv {
 namespace url_shortener {
@@ -24,6 +26,11 @@ struct ReadOnlyAppConfig {
 
   const char *static_file_request_path_prefix{"/static/"};
 
+  // How many times per minute can an IP hit a protected route
+  uint32_t rate_limit_per_minute{3};
+
+  uint32_t ip_rate_limiter_seconds_ttl{86400};
+
   // This is the base URL for your URL shortening service, after which
   // the shortened URL slug is appended. For example,
   // "https://prv.ec/" or "https://bit.ly/"
@@ -36,6 +43,16 @@ struct ReadOnlyAppConfig {
       "/etc/ssl/certs/ca-certificates.crt"};
 
   std::string captcha_service_api_key;
+
+  // IP addresses of reverse proxy servers allowed to transmit client
+  // IP addresses in headers (i.e., 'CF-Connecting-IP' or
+  // 'X-Forwarded-For')
+  std::vector<std::string>
+      known_cloudflare_cidrs{}; // https://www.cloudflare.com/ips-v4
+                                // https://www.cloudflare.com/ips-v6
+  std::vector<folly::CIDRNetwork> cf_cidrs{};
+  std::vector<std::string> allowed_reverse_proxy_cidrs{};
+  std::vector<folly::CIDRNetwork> reverse_proxy_cidrs{};
 
   // User agent the server uses when initiating requests to external services
   // (e.g., like reCAPTCHA)

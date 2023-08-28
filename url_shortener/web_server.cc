@@ -19,10 +19,11 @@
 #include "url_shortening.h"
 
 // request handlers
+#include "ddos_protection.h"
+#include "frontend_handler.h"
 #include "make_url_request_handler.h"
 #include "static_handler.h"
 #include "url_shortener_handler.h"
-#include "frontend_handler.h"
 
 DEFINE_int32(http_port, 11000, "Port to listen on with HTTP protocol");
 DEFINE_int32(spdy_port, 11001, "Port to listen on with SPDY protocol");
@@ -54,8 +55,10 @@ public:
   MyRequestHandlerFactory(
       const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig *app_state,
       std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db,
-      const folly::F14NodeMap<std::string, std::vector<uint8_t>> * const frontend_dir_cache)
-    : app_state_(app_state), db_(db), frontend_dir_cache_(frontend_dir_cache) {}
+      const folly::F14NodeMap<std::string, std::vector<uint8_t>>
+          *const frontend_dir_cache)
+      : app_state_(app_state), db_(db),
+        frontend_dir_cache_(frontend_dir_cache) {}
   void onServerStart(folly::EventBase *evb) noexcept override {
     static_file_cache_.reset(
         new ::ec_prv::url_shortener::web::StaticFileCache{});
@@ -72,30 +75,32 @@ public:
   proxygen::RequestHandler *
   onRequest(proxygen::RequestHandler *request_handler,
             proxygen::HTTPMessage *msg) noexcept override {
-    auto path = msg->getPath();
+    std::string_view path{msg->getPathAsStringPiece().begin(),
+                          msg->getPathAsStringPiece().end()};
     auto method = msg->getMethod();
-    if (path.rfind("/static/", 0) == 0 &&
-               method == proxygen::HTTPMethod::GET) {
+    if (path.starts_with("/static/") && method == proxygen::HTTPMethod::GET) {
       // serve static files
       DLOG(INFO) << "Route \"static\" found. Serving static files.";
       return new ::ec_prv::url_shortener::web::StaticHandler(
           static_file_cache_, app_state_->static_file_doc_root);
-    } else if (path.rfind("/api/", 0) == 0) {
+    } else if (path.starts_with("/api/")) {
       DLOG(INFO) << "Route \"/api/*\" found.";
-      if (path == "/api/v1/create") {
+      if (path == "/api/v1/create" && (method == proxygen::HTTPMethod::POST ||
+                                       method == proxygen::HTTPMethod::PUT)) {
         return new ::ec_prv::url_shortener::web::MakeUrlRequestHandler(
             db_.get(), timer_.get(), app_state_);
       } else {
         return new NotFoundHandler{};
       }
-    }
-    // serve frontend directory quickly from cache
-    if (method == proxygen::HTTPMethod::GET && frontend_dir_cache_->contains(path.substr(1))) {
-      return new ::ec_prv::url_shortener::web::FrontendHandler{frontend_dir_cache_};
-    }
-    std::string_view parsed =
-        ec_prv::url_shortener::url_shortening::parse_out_request_str(path);
-    if (parsed.length() > 0) {
+    } else if (method == proxygen::HTTPMethod::GET &&
+               frontend_dir_cache_->contains(path.substr(1))) {
+      // serve frontend directory quickly from cache
+      return new ::ec_prv::url_shortener::web::FrontendHandler{
+          frontend_dir_cache_};
+    } else if (std::string_view parsed =
+                   ec_prv::url_shortener::url_shortening::parse_out_request_str(
+                       path);
+               parsed.length() > 0 && method == proxygen::HTTPMethod::GET) {
       return new ::ec_prv::url_shortener::web::UrlRedirectHandler(
           std::string{parsed}, db_.get(), app_state_);
     }
@@ -105,13 +110,15 @@ public:
 private:
   const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig
       *app_state_; // TODO: make this a folly::ThreadLocalPtr
-  std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db_; // TODO(zds): make access to rocksdb threadsafe
+  std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase>
+      db_; // TODO(zds): make access to rocksdb threadsafe
   // folly::ThreadLocalPtr<::ec_prv::url_shortener::web::StaticFileCache>
   // static_file_cache_{nullptr};
   std::shared_ptr<::ec_prv::url_shortener::web::StaticFileCache>
       static_file_cache_{nullptr};
   folly::HHWheelTimer::UniquePtr timer_;
-  const folly::F14NodeMap<std::string, std::vector<uint8_t>> *const frontend_dir_cache_;
+  const folly::F14NodeMap<std::string, std::vector<uint8_t>>
+      *const frontend_dir_cache_;
 };
 
 } // namespace
@@ -163,7 +170,10 @@ int main(int argc, char *argv[]) {
           highwayhash_key_inp);
 
   // build cache of frontend directory files
-  std::unique_ptr<folly::F14NodeMap<std::string, std::vector<uint8_t>>> frontend_dir_cache = ::ec_prv::url_shortener::web::build_frontend_dir_cache(ro_app_state->frontend_doc_root);
+  std::unique_ptr<folly::F14NodeMap<std::string, std::vector<uint8_t>>>
+      frontend_dir_cache =
+          ::ec_prv::url_shortener::web::build_frontend_dir_cache(
+              ro_app_state->frontend_doc_root);
 
   proxygen::HTTPServerOptions options;
   options.threads = static_cast<size_t>(FLAGS_threads);
@@ -172,7 +182,10 @@ int main(int argc, char *argv[]) {
   options.enableContentCompression = false;
   options.handlerFactories =
       proxygen::RequestHandlerChain()
-    .addThen<MyRequestHandlerFactory>(ro_app_state.get(), db, frontend_dir_cache.get())
+          .addThen<::ec_prv::url_shortener::web::AntiAbuseProtection>(
+              ro_app_state.get())
+          .addThen<MyRequestHandlerFactory>(ro_app_state.get(), db,
+                                            frontend_dir_cache.get())
           .build();
   // Increase the default flow control to 1MB/10MB
   options.initialReceiveWindow = uint32_t(1 << 20);

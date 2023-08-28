@@ -1,11 +1,10 @@
 #ifndef _INCLUDE_EC_PRV_URL_SHORTENER_WEB_STATIC_HANDLER_H
 #define _INCLUDE_EC_PRV_URL_SHORTENER_WEB_STATIC_HANDLER_H
 
-#include <folly/Range.h>
-#include <vector>
 #include <filesystem>
 #include <folly/File.h>
 #include <folly/Memory.h>
+#include <folly/Range.h>
 #include <folly/container/F14Map.h>
 #include <folly/io/IOBuf.h>
 #include <folly/io/IOBufQueue.h>
@@ -14,7 +13,7 @@
 #include <proxygen/httpserver/ResponseHandler.h>
 #include <string>
 #include <string_view>
-
+#include <vector>
 
 namespace ec_prv {
 namespace url_shortener {
@@ -29,11 +28,14 @@ public:
   // TODO(zds): test this with non-textual, binary data files
 
   auto exists(const std::filesystem::path &) const -> bool;
-  auto get_copy(const std::filesystem::path &) const -> std::vector<unsigned char>;
-  auto get(const std::filesystem::path &) const -> std::unique_ptr<folly::IOBuf>;
+  auto get_copy(const std::filesystem::path &) const
+      -> std::vector<unsigned char>;
+  auto get(const std::filesystem::path &) const
+      -> std::unique_ptr<folly::IOBuf>;
   auto set(const std::filesystem::path &file_path, std::string_view body)
       -> void;
-  auto append_data(const std::filesystem::path &file_path, folly::ByteRange buf) -> void;
+  auto append_data(const std::filesystem::path &file_path, folly::ByteRange buf)
+      -> void;
 
 private:
   folly::F14NodeMap<std::string, std::vector<unsigned char>> cache_;
