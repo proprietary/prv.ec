@@ -138,6 +138,7 @@ auto ReadOnlyAppConfig::new_from_env()
          "reverse proxy.";
 
   for (const auto &cf_cidr_str : dst->known_cloudflare_cidrs) {
+    VLOG(3) << "loaded Cloudflare IP & subnet mask: " << cf_cidr_str;
     auto r = folly::IPAddress::tryCreateNetwork(cf_cidr_str);
     if (r.hasValue()) {
       dst->cf_cidrs.push_back(r.value());
@@ -157,6 +158,7 @@ auto ReadOnlyAppConfig::new_from_env()
          "headers, this web service may not work. The app configuration does "
          "not have the CIDR(s) of this reverse proxy (to know who to trust).";
   for (const auto &rp_cidr_str : dst->allowed_reverse_proxy_cidrs) {
+    VLOG(3) << "loaded reverse proxy IP & subnet mask: " << rp_cidr_str;
     auto r = folly::IPAddress::tryCreateNetwork(rp_cidr_str);
     if (r.hasValue()) {
       dst->reverse_proxy_cidrs.push_back(r.value());

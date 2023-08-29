@@ -44,9 +44,9 @@ auto MakeUrlRequestHandler::query_captcha_service(
     const std::string &captcha_user_response) -> folly::Future<std::string> {
   // connect
   folly::SocketAddress addr;
-  // proxygen::URL
-  // external_service_url{"https://www.google.com/recaptcha/api/siteverify"};
-  proxygen::URL external_service_url{"https://api.ipify.org/?format=json"};
+  proxygen::URL external_service_url{
+      "https://www.google.com/recaptcha/api/siteverify"};
+  // proxygen::URL external_service_url{"https://api.ipify.org/?format=json"};
   // TODO(zds): this is a synchronous DNS lookup! bad in an event loop!
   addr.setFromHostPort(external_service_url.getHost(),
                        external_service_url.getPort());
@@ -55,18 +55,17 @@ auto MakeUrlRequestHandler::query_captcha_service(
   request_headers_to_captcha_service_->setURL(external_service_url.getPath());
   request_headers_to_captcha_service_->setQueryString(
       external_service_url.getQuery());
-  request_headers_to_captcha_service_->setMethod(proxygen::HTTPMethod::GET);
+  request_headers_to_captcha_service_->setMethod(proxygen::HTTPMethod::POST);
   request_headers_to_captcha_service_->getHeaders().add(
       proxygen::HTTPHeaderCode::HTTP_HEADER_ORIGIN,
-      ro_app_config_->url_shortener_service_base_url);
+      /*ro_app_config_->url_shortener_service_base_url*/ "localhost");
   request_headers_to_captcha_service_->getHeaders().add(
       proxygen::HTTPHeaderCode::HTTP_HEADER_HOST,
       external_service_url.getHost());
   request_headers_to_captcha_service_->getHeaders().add(
       proxygen::HTTPHeaderCode::HTTP_HEADER_ACCEPT, "application/json");
-  request_headers_to_captcha_service_->getHeaders().add(
-      proxygen::HTTPHeaderCode::HTTP_HEADER_USER_AGENT,
-      ro_app_config_->server_user_agent);
+  // request_headers_to_captcha_service_->getHeaders().add(proxygen::HTTPHeaderCode::HTTP_HEADER_USER_AGENT,
+  // ro_app_config_->server_user_agent);
   request_headers_to_captcha_service_->getHeaders().add(
       proxygen::HTTPHeaderCode::HTTP_HEADER_CONTENT_TYPE,
       "application/x-www-form-urlencoded");
@@ -81,6 +80,20 @@ auto MakeUrlRequestHandler::query_captcha_service(
   // request_body_to_captcha_service_ =
   // folly::IOBuf::copyBuffer(captcha_service_request_body.data(),
   // captcha_service_request_body.size());
+
+  auto secret_encoded = folly::uriEscape<std::string>(
+      folly::StringPiece{ro_app_config_->captcha_service_api_key});
+  auto response_encoded =
+      folly::uriEscape<std::string>(folly::StringPiece{captcha_user_response});
+  std::string captcha_service_request_body =
+      folly::sformat("secret={}&response={}", secret_encoded, response_encoded);
+  DLOG(INFO) << "recaptcha request body: " << captcha_service_request_body;
+  request_body_to_captcha_service_ = folly::IOBuf::copyBuffer(
+      captcha_service_request_body.data(), captcha_service_request_body.size());
+  request_headers_to_captcha_service_->getHeaders().add(
+      proxygen::HTTPHeaderCode::HTTP_HEADER_CONTENT_LENGTH,
+      std::to_string(captcha_service_request_body.size()));
+
   auto evb = folly::EventBaseManager::get()->getEventBase();
   // TODO(zds): use a connection pool here
   const folly::SocketOptionMap opts{{{SOL_SOCKET, SO_REUSEADDR}, 1}};
@@ -117,6 +130,7 @@ void MakeUrlRequestHandler::connectSuccess(
   CHECK(request_headers_to_captcha_service_)
       << "request headers to captcha service cannot be null";
   txn_->sendHeaders(*request_headers_to_captcha_service_);
+  request_headers_to_captcha_service_->dumpMessage(google::INFO);
   if (request_body_to_captcha_service_) {
     txn_->sendBody(std::move(request_body_to_captcha_service_));
   }
@@ -150,13 +164,17 @@ void MakeUrlRequestHandler::on_captcha_service_EOM(
   CHECK(headers) << "headers cannot be null";
   DLOG(INFO) << "received status code from captcha service: "
              << headers->getStatusCode();
-  // CHECK(body) << "body cannot be null";
   if (headers->getStatusCode() != 200) {
     LOG(ERROR) << "Received status code " << headers->getStatusCode()
                << " from captcha service: " << headers->getStatusMessage();
-    proxygen::ResponseBuilder(downstream_)
-        .status(500, "Internal Server Error")
-        .sendWithEOM();
+    captcha_service_result_promise_.setException(std::runtime_error{
+        folly::sformat("received status code: {}", headers->getStatusCode())});
+    return;
+  }
+  if (!body) {
+    LOG(ERROR) << "Received empty body from captcha service";
+    captcha_service_result_promise_.setException(
+        std::runtime_error{"body missing"});
     return;
   }
   auto response_body = body->coalesce();
@@ -164,24 +182,14 @@ void MakeUrlRequestHandler::on_captcha_service_EOM(
       reinterpret_cast<const char *>(response_body.data()),
       response_body.size()};
   DLOG(INFO) << "Got from captcha service: " << response_text;
-  try {
-    folly::dynamic response_json = folly::parseJson(response_text);
-    captcha_service_result_promise_.setValue(std::string(response_text));
-    // use_result_(response_json);
-  } catch (...) {
-    LOG(ERROR) << "Something happened.";
-    proxygen::ResponseBuilder(downstream_)
-        .status(500, "Internal Server Error")
-        .sendWithEOM();
-  }
+  captcha_service_result_promise_.setValue(std::string(response_text));
 }
 
 void MakeUrlRequestHandler::on_captcha_service_error(
     const proxygen::HTTPException &err) noexcept {
-  LOG(ERROR) << "captcha service error: " << err.what();
-  proxygen::ResponseBuilder(downstream_)
-      .status(500, "Internal Server Error")
-      .sendWithEOM();
+  LOG(ERROR) << "captcha service error: " << err.describe();
+  captcha_service_result_promise_.setException(
+      std::runtime_error{err.describe()});
 }
 
 void MakeUrlRequestHandler::onRequest(
@@ -310,36 +318,60 @@ void MakeUrlRequestHandler::onEOM() noexcept {
     return;
   }
   folly::EventBase *evb = folly::EventBaseManager::get()->getEventBase();
+  // Make sure not to close the connection (deleting `this`) while we still need
+  // `this` in this promise/future
   query_captcha_service(user_captcha_response)
       .thenValue([](std::string result) {
+        DLOG(INFO) << "in promise thenValue";
         auto json = folly::parseJson(result);
-        if (json.isObject() && !json["ip"].isNull()) {
-          DLOG(INFO) << "parsed result from captcha service: "
-                     << json["ip"].asString();
+        DLOG(INFO) << "parsed json in future";
+        if (json.isObject() && !json["success"].isNull()) {
+          DLOG(INFO) << "parsed result from captcha service";
+          return json["success"].asBool();
         } else {
           DLOG(ERROR) << "failed to parse JSON result from captcha service, "
                          "but got this string from the captcha service: "
                       << result;
           throw std::runtime_error{"json parse fail"};
         }
-        return true;
+        return false;
       })
       .via(folly::getGlobalCPUExecutor())
-      .thenValue(
-          [this, long_url](bool _) mutable { return do_shorten_url(long_url); })
+      .thenValue([this, long_url](bool success) mutable {
+        if (success) {
+          return do_shorten_url(long_url);
+        }
+        return std::string{};
+      })
       .via(evb)
       .thenValue([this](std::string &&short_url) mutable {
-        DLOG(INFO) << "created short url slug: " << short_url;
-        proxygen::ResponseBuilder(downstream_)
-            .status(200, "OK")
-            .body(std::move(short_url))
-            .sendWithEOM();
+        if (short_url.empty()) {
+          DLOG(INFO) << "did not create new short url";
+          proxygen::ResponseBuilder(downstream_)
+              .status(400, "Bad Request")
+              .header(proxygen::HTTPHeaderCode::
+                          HTTP_HEADER_ACCESS_CONTROL_ALLOW_ORIGIN,
+                      "*")
+              .sendWithEOM();
+        } else {
+          DLOG(INFO) << "created short url slug: " << short_url;
+          proxygen::ResponseBuilder(downstream_)
+              .status(200, "OK")
+              .header(proxygen::HTTPHeaderCode::
+                          HTTP_HEADER_ACCESS_CONTROL_ALLOW_ORIGIN,
+                      "*")
+              .body(std::move(short_url))
+              .sendWithEOM();
+        }
       })
       .thenError([this](folly::exception_wrapper &&e) mutable {
         DLOG(ERROR) << "error in captcha service: "
                     << e.get_exception()->what();
         proxygen::ResponseBuilder(downstream_)
             .status(500, "Internal Server Error")
+            .header(proxygen::HTTPHeaderCode::
+                        HTTP_HEADER_ACCESS_CONTROL_ALLOW_ORIGIN,
+                    "*")
             .sendWithEOM();
       });
 }
