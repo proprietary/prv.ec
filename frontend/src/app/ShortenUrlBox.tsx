@@ -47,6 +47,7 @@ export default function ShortenUrlBox() {
         setIsLoading(true);
         if (recaptchaRef != null && recaptchaRef.current != null) {
             recaptchaRef.current.reset();
+	    setRecaptchaUserResponse('');
         } else {
             console.error('reCAPTCHA not found');
             throw new Error();
