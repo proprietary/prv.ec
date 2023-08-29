@@ -64,22 +64,12 @@ auto MakeUrlRequestHandler::query_captcha_service(
       external_service_url.getHost());
   request_headers_to_captcha_service_->getHeaders().add(
       proxygen::HTTPHeaderCode::HTTP_HEADER_ACCEPT, "application/json");
-  // request_headers_to_captcha_service_->getHeaders().add(proxygen::HTTPHeaderCode::HTTP_HEADER_USER_AGENT,
-  // ro_app_config_->server_user_agent);
+  request_headers_to_captcha_service_->getHeaders().add(proxygen::HTTPHeaderCode::HTTP_HEADER_USER_AGENT,
+  ro_app_config_->server_user_agent);
   request_headers_to_captcha_service_->getHeaders().add(
       proxygen::HTTPHeaderCode::HTTP_HEADER_CONTENT_TYPE,
       "application/x-www-form-urlencoded");
   request_headers_to_captcha_service_->setHTTPVersion(1, 1);
-  // TODO(zds): make function to uri escape or get folly's version to compile
-
-  // See: https://developers.google.com/recaptcha/docs/verify
-  // std::string captcha_service_request_body =
-  // folly::sformat("secret={}&response={}",
-  // 							    ro_app_config_->captcha_service_api_key,
-  // 							    captcha_user_response);
-  // request_body_to_captcha_service_ =
-  // folly::IOBuf::copyBuffer(captcha_service_request_body.data(),
-  // captcha_service_request_body.size());
 
   auto secret_encoded = folly::uriEscape<std::string>(
       folly::StringPiece{ro_app_config_->captcha_service_api_key});
@@ -104,8 +94,10 @@ auto MakeUrlRequestHandler::query_captcha_service(
         *ssl_context_.get());
     ssl_context_->loadTrustedCertificates(
         ro_app_config_->trusted_certificates_path.c_str());
+    // to do client certs:
     // ssl_context_->loadCertKeyPairFromFiles(cert_path, key_path);
     std::list<std::string> next_proto_list;
+    // TODO(zds): do not split this string at runtime
     folly::splitTo<std::string>(
         ',', "h2,h2-14,spdy/3.1,spdy/3,http/1.1",
         std::inserter(next_proto_list, next_proto_list.begin()));

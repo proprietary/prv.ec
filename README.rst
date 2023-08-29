@@ -33,6 +33,12 @@ Use the latest gcc or clang. C++20 is a must.
 - `gtest <https://github.com/google/googletest>`_ - Google Teset
 - `glog <https://github.com/google/glog>`_ - Google Logging
 
+A frontend built with `Next.js <https://nextjs.org/>`_ is included in `frontend/`. Building the frontend requires npm and node. Build it with::
+
+  $ npm install
+  $ npx next build
+
+
 
 License
 -------
