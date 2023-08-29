@@ -68,7 +68,7 @@ ShortenedUrlsDatabase::~ShortenedUrlsDatabase() noexcept {
 
 auto ShortenedUrlsDatabase::put(std::string_view shortened_url,
                                 std::string_view full_url) noexcept
-    -> std::variant<std::monostate, UrlShorteningDbError> {
+    -> std::optional<UrlShorteningDbError> {
   auto write_opts = rocksdb::WriteOptions();
   DLOG(INFO) << "Putting shortened URL into RocksDB \"" << shortened_url
              << "\" -> \"" << full_url << "\"";
@@ -85,14 +85,7 @@ auto ShortenedUrlsDatabase::put(std::string_view shortened_url,
     }
     return UrlShorteningDbError::InternalRocksDbError;
   }
-  std::string o2{};
-  auto s2 = rocksdb_->Get(rocksdb::ReadOptions(), shortened_url, &o2);
-  DLOG(INFO) << "During Put Into Database of " << shortened_url << " got back "
-             << o2 << " with status " << s2.ToString();
-  CHECK(o2 == full_url) << "What rocksdb returned after lookup does not match "
-                           "what was supposed to be recently inserted: "
-                        << o2 << " != " << full_url;
-  return std::monostate{};
+  return {};
 }
 
 auto ShortenedUrlsDatabase::get(std::string_view shortened_url) noexcept

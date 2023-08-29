@@ -20,6 +20,11 @@ struct ReadOnlyAppConfig {
 
   uint16_t web_server_port{60022};
 
+  uint8_t slug_length{7};
+
+  std::string alphabet{
+      "123456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"};
+
   std::filesystem::path static_file_doc_root;
 
   std::filesystem::path frontend_doc_root;
@@ -27,7 +32,7 @@ struct ReadOnlyAppConfig {
   const char *static_file_request_path_prefix{"/static/"};
 
   // How many times per minute can an IP hit a protected route
-  uint32_t rate_limit_per_minute{3};
+  uint32_t rate_limit_per_minute{60};
 
   uint32_t ip_rate_limiter_seconds_ttl{86400};
 

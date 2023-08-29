@@ -19,6 +19,7 @@
 
 #include "app_config.h"
 #include "db.h"
+#include "url_shortening.h"
 
 namespace ec_prv {
 namespace url_shortener {
@@ -29,7 +30,9 @@ public:
   explicit MakeUrlRequestHandler(
       ::ec_prv::url_shortener::db::ShortenedUrlsDatabase *db,
       folly::HHWheelTimer *timer,
-      const app_config::ReadOnlyAppConfig *const ro_app_config);
+      const app_config::ReadOnlyAppConfig *const ro_app_config,
+      const ::ec_prv::url_shortener::url_shortening::UrlShorteningConfig
+          *const url_shortening_svc_);
 
   // RequestHandler methods
   void
@@ -162,9 +165,11 @@ private:
   bool check_for_shutdown() noexcept;
   void abort_downstream() noexcept;
 
-  ec_prv::url_shortener::db::ShortenedUrlsDatabase *const db_;
-  const ec_prv::url_shortener::app_config::ReadOnlyAppConfig
+  ::ec_prv::url_shortener::db::ShortenedUrlsDatabase *const db_;
+  const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig
       *const ro_app_config_;
+  const ::ec_prv::url_shortener::url_shortening::UrlShorteningConfig
+      *const url_shortening_svc_;
   std::string_view captcha_service_api_key_;
   std::unique_ptr<proxygen::HTTPMessage> request_headers_to_captcha_service_;
   std::unique_ptr<folly::IOBuf>

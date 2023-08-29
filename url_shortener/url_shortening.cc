@@ -101,6 +101,46 @@ auto generate_shortened_url(std::string_view src,
   }
   return out;
 }
+
+UrlShorteningConfig::UrlShorteningConfig(const std::string &alphabet,
+                                         const uint8_t slug_length,
+                                         const uint64_t *highwayhash_key_input)
+    : alphabet_(alphabet), slug_length_(slug_length) {
+  highwayhash_key_[0] = highwayhash_key_input[0];
+  highwayhash_key_[1] = highwayhash_key_input[1];
+  highwayhash_key_[2] = highwayhash_key_input[2];
+  highwayhash_key_[3] = highwayhash_key_input[3];
+}
+
+auto UrlShorteningConfig::generate_slug(std::string &dst,
+                                        std::string_view long_url,
+                                        uint8_t nth_try) const -> bool {
+  dst.reserve(slug_length_);
+  highwayhash::HHResult256 result;
+  highwayhash::HHStateT<HH_TARGET_PREFERRED> state(highwayhash_key_);
+  highwayhash::HighwayHashT(&state, long_url.data(), long_url.size(), &result);
+  const std::size_t alphabet_len = alphabet_.length();
+  std::size_t result_idx = 0;
+  while (nth_try-- > 0) {
+    // collisions should be very rare, so should never need to try more than
+    // once
+    dst.clear();
+    for (auto i = 0; i < slug_length_; ++i) {
+      if (result[result_idx] <= 0) {
+        result_idx = result_idx + 1;
+        assert(4 == sizeof(result) / sizeof(result[0]));
+        if (result_idx > sizeof(result) / sizeof(result[0])) {
+          // very rare error: ran out of hashes; probably alphabet is too short
+          return false;
+        }
+      }
+      std::size_t alphabet_idx = result[result_idx] % alphabet_len;
+      dst.append(1, alphabet[alphabet_idx]);
+      result[result_idx] /= alphabet_len;
+    }
+  }
+  return true;
+}
 } // namespace url_shortening
 } // namespace url_shortener
 } // namespace ec_prv

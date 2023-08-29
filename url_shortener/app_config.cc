@@ -167,6 +167,24 @@ auto ReadOnlyAppConfig::new_from_env()
     }
   }
 
+  const char *slug_length_inp =
+      std::getenv("EC_PRV_URL_SHORTENER__SLUG_LENGTH");
+  if (slug_length_inp != nullptr)
+    dst->slug_length = std::atoi(slug_length_inp);
+  CHECK(dst->slug_length > 0)
+      << "\"slug_length\" configuration parameter must be greater than 0 -- "
+         "this is the number of characters in the slug for the shortened URL";
+
+  const char *alphabet_inp = std::getenv("EC_PRV_URL_SHORTENER__ALPHABET");
+  if (alphabet_inp != nullptr && strlen(alphabet_inp) > 1) {
+    dst->alphabet = alphabet_inp;
+  } else {
+    LOG(ERROR) << "did not use \"alphabet\" configuration parameter from "
+                  "environment; invalid input";
+  }
+  CHECK(dst->alphabet.length() > 0)
+      << "Invalid \"alphabet\" app configuration parameter";
+
   return dst;
 }
 

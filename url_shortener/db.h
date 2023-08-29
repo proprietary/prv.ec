@@ -10,6 +10,7 @@
 #include <filesystem>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <variant>
@@ -33,13 +34,15 @@ private:
   explicit ShortenedUrlsDatabase(rocksdb::DB *rocksdb,
                                  std::filesystem::path path)
       : path_(path), rocksdb_(rocksdb), read_options_(rocksdb::ReadOptions()) {}
-  ShortenedUrlsDatabase() = default;
 
 public:
+  ShortenedUrlsDatabase() = delete;
+  ShortenedUrlsDatabase(const ShortenedUrlsDatabase &) = delete;
+  ShortenedUrlsDatabase(ShortenedUrlsDatabase &&) = delete;
   ~ShortenedUrlsDatabase();
   [[nodiscard]] static auto open() -> std::shared_ptr<ShortenedUrlsDatabase>;
   auto put(std::string_view shortened_url, std::string_view full_url) noexcept
-      -> std::variant<std::monostate, UrlShorteningDbError>;
+      -> std::optional<UrlShorteningDbError>;
   auto get(std::string_view shortened_url) noexcept
       -> std::variant<std::string, UrlShorteningDbError>;
   auto get_fast(std::string *buf, std::string_view short_url) noexcept -> bool;

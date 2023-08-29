@@ -54,10 +54,12 @@ class MyRequestHandlerFactory : public proxygen::RequestHandlerFactory {
 public:
   MyRequestHandlerFactory(
       const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig *app_state,
+      const ::ec_prv::url_shortener::url_shortening::UrlShorteningConfig
+          *const url_shortening_svc,
       std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db,
       const folly::F14NodeMap<std::string, std::vector<uint8_t>>
           *const frontend_dir_cache)
-      : app_state_(app_state), db_(db),
+      : app_state_(app_state), url_shortening_svc_(url_shortening_svc), db_(db),
         frontend_dir_cache_(frontend_dir_cache) {}
   void onServerStart(folly::EventBase *evb) noexcept override {
     static_file_cache_.reset(
@@ -94,7 +96,7 @@ public:
       if (path == "/api/v1/create" && (method == proxygen::HTTPMethod::POST ||
                                        method == proxygen::HTTPMethod::PUT)) {
         return new ::ec_prv::url_shortener::web::MakeUrlRequestHandler(
-            db_.get(), timer_.get(), app_state_);
+            db_.get(), timer_.get(), app_state_, url_shortening_svc_);
       } else {
         return new NotFoundHandler{};
       }
@@ -111,6 +113,8 @@ public:
 private:
   const ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig
       *app_state_; // TODO: make this a folly::ThreadLocalPtr
+  const ::ec_prv::url_shortener::url_shortening::UrlShorteningConfig
+      *const url_shortening_svc_;
   std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase>
       db_; // TODO(zds): make access to rocksdb threadsafe
   // folly::ThreadLocalPtr<::ec_prv::url_shortener::web::StaticFileCache>
@@ -136,6 +140,12 @@ int main(int argc, char *argv[]) {
                       ReadOnlyAppConfigDeleter>
       ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::
           new_from_env();
+
+  std::unique_ptr<::ec_prv::url_shortener::url_shortening::UrlShorteningConfig>
+      url_shortening_svc = std::make_unique<
+          ::ec_prv::url_shortener::url_shortening::UrlShorteningConfig>(
+          ro_app_state->alphabet, ro_app_state->slug_length,
+          ro_app_state->highwayhash_key);
 
   std::vector<proxygen::HTTPServer::IPConfig> IPs = {
       {folly::SocketAddress(ro_app_state->web_server_bind_host,
@@ -185,7 +195,8 @@ int main(int argc, char *argv[]) {
       proxygen::RequestHandlerChain()
           .addThen<::ec_prv::url_shortener::web::AntiAbuseProtection>(
               ro_app_state.get())
-          .addThen<MyRequestHandlerFactory>(ro_app_state.get(), db,
+          .addThen<MyRequestHandlerFactory>(ro_app_state.get(),
+                                            url_shortening_svc.get(), db,
                                             frontend_dir_cache.get())
           .build();
   // Increase the default flow control to 1MB/10MB

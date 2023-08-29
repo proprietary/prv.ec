@@ -21,7 +21,9 @@
 #include <proxygen/lib/http/HTTPMethod.h>
 #include <proxygen/lib/http/session/HTTPUpstreamSession.h>
 #include <proxygen/lib/utils/URL.h>
+#include <variant>
 
+#include "url_shortener/db.h"
 #include "url_shortening.h"
 
 namespace ec_prv {
@@ -30,9 +32,11 @@ namespace web {
 
 MakeUrlRequestHandler::MakeUrlRequestHandler(
     db::ShortenedUrlsDatabase *db, folly::HHWheelTimer *timer,
-    const app_config::ReadOnlyAppConfig *const ro_app_config)
+    const app_config::ReadOnlyAppConfig *const ro_app_config,
+    const ::ec_prv::url_shortener::url_shortening::UrlShorteningConfig
+        *const url_shortening_svc)
     : db_(db), ro_app_config_(ro_app_config), txn_handler_(*this),
-      connector_(this, timer) {
+      connector_(this, timer), url_shortening_svc_(url_shortening_svc) {
   DLOG(INFO) << "created new request handler for make url";
 }
 
@@ -196,6 +200,7 @@ void MakeUrlRequestHandler::onRequest(
 
 void MakeUrlRequestHandler::onBody(
     std::unique_ptr<folly::IOBuf> body) noexcept {
+  DLOG(INFO) << "receive body";
   if (body_) {
     body_->appendToChain(std::move(body));
   } else {
@@ -205,26 +210,91 @@ void MakeUrlRequestHandler::onBody(
 
 auto MakeUrlRequestHandler::do_shorten_url(const std::string &long_url)
     -> std::string {
-  auto generated_short_url = url_shortening::generate_shortened_url(
-      long_url, ro_app_config_->highwayhash_key);
-  // TODO(zds): check and handle eerrors from database
-  db_->put(generated_short_url, long_url);
+  std::string generated_short_url;
+  // keep generating slugs until it doesn't collide with previous entries
+  uint8_t nth_try = 1;
+  constexpr uint8_t max_tries = 100; // don't hang forever
+  while (nth_try++ < max_tries) {
+    bool ok = url_shortening_svc_->generate_slug(generated_short_url, long_url,
+                                                 nth_try);
+    LOG_IF(ERROR, !ok) << "what should be a very rare error: ran out of hashes "
+                          "in creating slug for long_url=\""
+                       << long_url << "\"";
+    if (!ok) {
+      // TODO(zds): just default to creating a random string
+      return {};
+    }
+    auto got = db_->get(generated_short_url);
+    if (std::holds_alternative<db::UrlShorteningDbError>(got)) {
+      auto err = std::get_if<db::UrlShorteningDbError>(&got);
+      if (*err == db::UrlShorteningDbError::NotFound) {
+        // not found in database; this generated slug works
+        break;
+      } else {
+        LOG(ERROR) << "database failure";
+        return {};
+      }
+    }
+    auto got_str = std::get_if<std::string>(&got);
+    if (*got_str == "") {
+      // not found in database; this generated slug works
+      break;
+    } else if (*got_str == long_url) {
+      // already in database
+      // no need to re-insert it
+      return generated_short_url;
+    }
+    LOG(WARNING) << "slug generated for \"" << long_url << "\": \""
+                 << generated_short_url
+                 << "\" collides with the slug for an existing entry: \""
+                 << *got_str
+                 << "\". Consider increasing size of the alphabet used (in the "
+                    "app configuration).";
+  }
+  auto err = db_->put(generated_short_url, long_url);
+  if (err) {
+    LOG(ERROR) << "rocksdb errored during insert of: long_url=\"" << long_url
+               << "\", generated_short_url=\"" << generated_short_url << "\"";
+    return {};
+  }
   return generated_short_url;
 }
 
 void MakeUrlRequestHandler::onEOM() noexcept {
   if (client_terminated_) {
-    DLOG(INFO) << "client terminated; no need to create requested URL";
+    DLOG(ERROR) << "client terminated; no need to create requested URL";
     return;
   }
   if (!headers_) {
     DLOG(ERROR) << "Missing headers; should not happen";
+    proxygen::ResponseBuilder(downstream_)
+        .status(400, "Bad Request")
+        .sendWithEOM();
+  }
+  // // parse input
+  // std::string user_captcha_response =
+  //     headers_->getQueryParam("user_captcha_response");
+  // std::string long_url = headers_->getQueryParam("long_url");
+
+  // parse input from request JSON
+  DLOG_IF(WARNING, !body_) << "Body missing";
+  std::string user_captcha_response, long_url;
+  if (body_) {
+    auto body_bytes = body_->coalesce();
+    std::string_view body_str{reinterpret_cast<const char *>(body_bytes.data()),
+                              body_bytes.size()};
+    auto body_json = folly::parseJson(body_str);
+    if (body_json.isObject() && !body_json["user_captcha_response"].isNull() &&
+        !body_json["long_url"].isNull()) {
+      user_captcha_response = body_json["user_captcha_response"].asString();
+      long_url = body_json["long_url"].asString();
+    }
+  } else {
+    proxygen::ResponseBuilder(downstream_)
+        .status(400, "Bad Request")
+        .sendWithEOM();
     return;
   }
-  // parse input
-  std::string user_captcha_response =
-      headers_->getQueryParam("user_captcha_response");
-  std::string long_url = headers_->getQueryParam("long_url");
   if (user_captcha_response.length() == 0) {
     DLOG(INFO) << "`user_captcha_response` parameter missing";
     proxygen::ResponseBuilder(downstream_)
