@@ -50,7 +50,7 @@ export default function ShortenUrlBox() {
 	    setRecaptchaUserResponse('');
         } else {
             console.error('reCAPTCHA not found');
-            throw new Error();
+            setErrored(true);
         }
         try {
             const shortUrl = await makeRequest(recaptchaUserResponse, urlToShorten);

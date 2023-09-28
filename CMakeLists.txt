@@ -6,7 +6,7 @@ list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 find_package(Threads)
 find_package(glog REQUIRED)
-find_package(proxygen REQUIRED)
+#find_package(proxygen REQUIRED)
 find_package(Folly REQUIRED)
 find_package(Gflags REQUIRED)
 find_package(RocksDB REQUIRED)
@@ -26,4 +26,4 @@ target_link_libraries(url_shortening PUBLIC app_config highwayhash Folly::folly 
 
 
 add_executable(web_server url_shortener/web_server.cc url_shortener/url_shortener_handler.h url_shortener/url_shortener_handler.cc url_shortener/static_handler.h url_shortener/static_handler.cc url_shortener/make_url_request_handler.h url_shortener/make_url_request_handler.cc url_shortener/frontend_handler.h url_shortener/frontend_handler.cc url_shortener/ddos_protection.h url_shortener/ddos_protection.cc)
-target_link_libraries(web_server PUBLIC proxygen::proxygen proxygen::proxygenhttpserver Folly::folly url_shortening app_config)
+target_link_libraries(web_server PUBLIC proxygen proxygenhttpserver Folly::folly url_shortening app_config)

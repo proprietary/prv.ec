@@ -77,6 +77,11 @@ auto ReadOnlyAppConfig::new_from_env()
     dst->grpc_service_port = static_cast<uint16_t>(std::atoi(rpc_port_s));
   }
 
+  const char *ip_rate_limiter_ttl_seconds_inp = std::getenv("EC_PRV_URL_SHORTENER__IP_RATE_LIMITER_TTL_SECONDS");
+  if (ip_rate_limiter_ttl_seconds_inp != nullptr) {
+    dst->ip_rate_limiter_seconds_ttl = std::atoi(ip_rate_limiter_ttl_seconds_inp);
+  }
+
   const char *web_server_port_s =
       std::getenv("EC_PRV_URL_SHORTENER__WEB_SERVER_PORT");
   if (web_server_port_s != nullptr) {
