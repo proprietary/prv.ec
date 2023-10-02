@@ -1,3 +1,0 @@
-[submodule "third_party/highwayhash"]
-	path = third_party/highwayhash
-	url = https://github.com/google/highwayhash
