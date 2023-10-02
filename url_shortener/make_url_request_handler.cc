@@ -271,6 +271,7 @@ void MakeUrlRequestHandler::onEOM() noexcept {
         .status(400, "Bad Request")
         .sendWithEOM();
   }
+  DLOG(INFO) << "make url request handler EOM";
   // // parse input
   // std::string user_captcha_response =
   //     headers_->getQueryParam("user_captcha_response");

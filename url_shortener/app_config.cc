@@ -69,12 +69,13 @@ auto ReadOnlyAppConfig::new_from_yaml(std::filesystem::path yaml_filename) -> st
   const std::string static_file_doc_root = config["static_file_doc_root"].as<std::string>();
   dst->static_file_doc_root = static_file_doc_root;
   dst->frontend_doc_root = config["frontend_doc_root"].as<std::string>();
-  dst->ip_rate_limiter_seconds_ttl = config["rate_limiter_ttl_seconds"].as<uint32_t>();
   dst->web_server_bind_host = config["web_server_bind_host"].as<std::string>();
   dst->url_shortener_service_base_url = config["public_base_url"].as<std::string>();
   dst->slug_length = config["slug_length"].as<uint8_t>();
   dst->alphabet = config["alphabet"].as<std::string>();
   dst->rate_limit_per_minute = config["rate_limit_per_minute"].as<uint32_t>();
+  dst->ip_rate_limiter_seconds_ttl = config["rate_limiter_ttl_seconds"].as<uint32_t>();
+  dst->captcha_service_api_key = config["captcha_service_api_key"].as<std::string>();
   dst->trusted_certificates_path = config["trusted_certificates_path"].as<std::string>();
   auto hk = config["url_generator_salt"].as<std::string>();
   dst->highwayhash_key = create_highwayhash_key(hk);
