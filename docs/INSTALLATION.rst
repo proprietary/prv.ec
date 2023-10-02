@@ -102,11 +102,15 @@ Then build this application:
 .. code:: bash
 	  
    cd frontend/
+   export NEXT_PUBLIC__EC_PRV_URL_SHORTENER__RECAPTCHA_V2_SITE_KEY=<recaptcha V2 site key (shown to public, not your secret key!)>
+   export NEXT_PUBLIC__EC_PRV_URL_SHORTENER__BASE_URL=https://prv.ec # change to your domain/brand
+   export NEXT_PUBLIC__EC_PRV_URL_SHORTENER__API_BASE_URL=https://prv.ec # change to your domain/brand
    npm run build
    cd ../
    mkdir build_ && cd build_
    cmake -DCMAKE_BUILD_TYPE=Release ..
    make -j $(nproc)
-   ./web_server
+   # Go and edit sample_app_config.yml -> app_config.yml
+   ./web_server --config_file=$(pwd)/app_config.yml
 
 And the URL shortening service should be running.
