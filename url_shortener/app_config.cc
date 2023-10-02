@@ -53,11 +53,14 @@ auto split_csv_string(std::string_view csv_string,
 auto can_write_to_dir(std::filesystem::path directory) -> bool {
   try {
     std::filesystem::file_status status = std::filesystem::status(directory);
-    if (std::filesystem::exists(status) && std::filesystem::is_directory(status) && (status.permissions() & std::filesystem::perms::owner_write) != std::filesystem::perms::none) {
+    if (std::filesystem::exists(status) &&
+        std::filesystem::is_directory(status) &&
+        (status.permissions() & std::filesystem::perms::owner_write) !=
+            std::filesystem::perms::none) {
       return true;
     }
     return false;
-  } catch (const std::filesystem::filesystem_error& e) {
+  } catch (const std::filesystem::filesystem_error &e) {
     LOG(ERROR) << "Error checking directory permissions: " << e.what();
   }
   return false;
@@ -72,50 +75,67 @@ void ReadOnlyAppConfig::ReadOnlyAppConfigDeleter::operator()(
   }
 }
 
-auto ReadOnlyAppConfig::new_from_yaml(std::filesystem::path yaml_filename) -> std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter> {
-  std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter> dst{new ReadOnlyAppConfig, ReadOnlyAppConfigDeleter{}};
+auto ReadOnlyAppConfig::new_from_yaml(std::filesystem::path yaml_filename)
+    -> std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter> {
+  std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter> dst{
+      new ReadOnlyAppConfig, ReadOnlyAppConfigDeleter{}};
 
   YAML::Node config = YAML::LoadFile(yaml_filename.c_str());
 
   const uint16_t web_server_port = config["web_server_port"].as<uint16_t>();
   dst->web_server_port = web_server_port;
-  const std::string static_file_doc_root = config["static_file_doc_root"].as<std::string>();
+  const std::string static_file_doc_root =
+      config["static_file_doc_root"].as<std::string>();
   std::filesystem::path urls_db_path = config["urls_db_path"].as<std::string>();
-  CHECK(can_write_to_dir(urls_db_path.parent_path())) << "Fix the configuration entry \"urls_db_path\". Cannot write to directory \""
-							   << urls_db_path.parent_path() << "\"";
+  CHECK(can_write_to_dir(urls_db_path.parent_path()))
+      << "Fix the configuration entry \"urls_db_path\". Cannot write to "
+         "directory \""
+      << urls_db_path.parent_path() << "\"";
   dst->urls_db_path = std::move(urls_db_path);
   dst->static_file_doc_root = static_file_doc_root;
   dst->frontend_doc_root = config["frontend_doc_root"].as<std::string>();
   dst->web_server_bind_host = config["web_server_bind_host"].as<std::string>();
-  dst->url_shortener_service_base_url = config["public_base_url"].as<std::string>();
+  dst->url_shortener_service_base_url =
+      config["public_base_url"].as<std::string>();
   dst->slug_length = config["slug_length"].as<uint8_t>();
   dst->alphabet = config["alphabet"].as<std::string>();
   dst->rate_limit_per_minute = config["rate_limit_per_minute"].as<uint32_t>();
-  dst->ip_rate_limiter_seconds_ttl = config["rate_limiter_ttl_seconds"].as<uint32_t>();
-  dst->captcha_service_api_key = config["captcha_service_api_key"].as<std::string>();
-  dst->trusted_certificates_path = config["trusted_certificates_path"].as<std::string>();
+  dst->ip_rate_limiter_seconds_ttl =
+      config["rate_limiter_ttl_seconds"].as<uint32_t>();
+  dst->captcha_service_api_key =
+      config["captcha_service_api_key"].as<std::string>();
+  dst->trusted_certificates_path =
+      config["trusted_certificates_path"].as<std::string>();
   auto hk = config["url_generator_salt"].as<std::string>();
   dst->highwayhash_key = create_highwayhash_key(hk);
 
-  auto cf_ip_ranges = config["known_cloudflare_ip_ranges"].as<std::vector<std::string>>();
+  auto cf_ip_ranges =
+      config["known_cloudflare_ip_ranges"].as<std::vector<std::string>>();
   for (const auto &ip_range : cf_ip_ranges) {
     auto res = folly::IPAddress::tryCreateNetwork(ip_range);
     if (res.hasValue()) {
       dst->cf_cidrs.push_back(res.value());
     } else {
-      LOG(ERROR) << "Unable to parse IP CIDR supplied in configuration as a Cloudflare IP range: " << ip_range << std::endl
-		 << "This must be a CIDR like \"2400:cb00::/32\" or \"172.64.0.0/13\".";
+      LOG(ERROR) << "Unable to parse IP CIDR supplied in configuration as a "
+                    "Cloudflare IP range: "
+                 << ip_range << std::endl
+                 << "This must be a CIDR like \"2400:cb00::/32\" or "
+                    "\"172.64.0.0/13\".";
     }
   }
 
-  auto rp_ip_ranges = config["known_reverse_proxy_ip_ranges"].as<std::vector<std::string>>();
+  auto rp_ip_ranges =
+      config["known_reverse_proxy_ip_ranges"].as<std::vector<std::string>>();
   for (const auto &ip_range : rp_ip_ranges) {
     auto res = folly::IPAddress::tryCreateNetwork(ip_range);
     if (res.hasValue()) {
       dst->reverse_proxy_cidrs.push_back(res.value());
     } else {
-      LOG(ERROR) << "Unable to parse IP CIDR supplied in configuration as a reverse proxy IP range: " << ip_range << std::endl
-		 << "This must be a CIDR like \"2400:cb00::/32\" or \"172.64.0.0/13\".";
+      LOG(ERROR) << "Unable to parse IP CIDR supplied in configuration as a "
+                    "reverse proxy IP range: "
+                 << ip_range << std::endl
+                 << "This must be a CIDR like \"2400:cb00::/32\" or "
+                    "\"172.64.0.0/13\".";
     }
   }
 
@@ -141,9 +161,11 @@ auto ReadOnlyAppConfig::new_from_env()
     dst->grpc_service_port = static_cast<uint16_t>(std::atoi(rpc_port_s));
   }
 
-  const char *ip_rate_limiter_ttl_seconds_inp = std::getenv("EC_PRV_URL_SHORTENER__IP_RATE_LIMITER_TTL_SECONDS");
+  const char *ip_rate_limiter_ttl_seconds_inp =
+      std::getenv("EC_PRV_URL_SHORTENER__IP_RATE_LIMITER_TTL_SECONDS");
   if (ip_rate_limiter_ttl_seconds_inp != nullptr) {
-    dst->ip_rate_limiter_seconds_ttl = std::atoi(ip_rate_limiter_ttl_seconds_inp);
+    dst->ip_rate_limiter_seconds_ttl =
+        std::atoi(ip_rate_limiter_ttl_seconds_inp);
   }
 
   const char *web_server_port_s =

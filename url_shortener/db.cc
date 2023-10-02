@@ -1,9 +1,9 @@
 #include "db.h"
 
-//#include "absl/base/log_severity.h"
-//#include "absl/flags/flag.h"
-//#include "absl/log/globals.h"
-//#include "absl/log/log.h"
+// #include "absl/base/log_severity.h"
+// #include "absl/flags/flag.h"
+// #include "absl/log/globals.h"
+// #include "absl/log/log.h"
 #include <algorithm>
 #include <cstdlib>
 #include <filesystem>
@@ -36,7 +36,8 @@ auto shortened_urls_database_path_env() -> std::filesystem::path {
 }
 } // namespace
 
-auto ShortenedUrlsDatabase::open(std::filesystem::path db_path) -> std::shared_ptr<ShortenedUrlsDatabase> {
+auto ShortenedUrlsDatabase::open(std::filesystem::path db_path)
+    -> std::shared_ptr<ShortenedUrlsDatabase> {
   rocksdb::DB *db;
   rocksdb::Options options;
   options.create_if_missing = true;

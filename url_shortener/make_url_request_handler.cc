@@ -64,8 +64,9 @@ auto MakeUrlRequestHandler::query_captcha_service(
       external_service_url.getHost());
   request_headers_to_captcha_service_->getHeaders().add(
       proxygen::HTTPHeaderCode::HTTP_HEADER_ACCEPT, "application/json");
-  request_headers_to_captcha_service_->getHeaders().add(proxygen::HTTPHeaderCode::HTTP_HEADER_USER_AGENT,
-  ro_app_config_->server_user_agent);
+  request_headers_to_captcha_service_->getHeaders().add(
+      proxygen::HTTPHeaderCode::HTTP_HEADER_USER_AGENT,
+      ro_app_config_->server_user_agent);
   request_headers_to_captcha_service_->getHeaders().add(
       proxygen::HTTPHeaderCode::HTTP_HEADER_CONTENT_TYPE,
       "application/x-www-form-urlencoded");

@@ -73,7 +73,8 @@ struct ReadOnlyAppConfig {
   [[nodiscard]] static auto new_from_env()
       -> std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter>;
 
-  [[nodiscard]] static auto new_from_yaml(std::filesystem::path yaml_filename) -> std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter>;
+  [[nodiscard]] static auto new_from_yaml(std::filesystem::path yaml_filename)
+      -> std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter>;
 };
 
 } // namespace app_config

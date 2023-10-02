@@ -138,14 +138,18 @@ int main(int argc, char *argv[]) {
   std::unique_ptr<::ec_prv::url_shortener::app_config::ReadOnlyAppConfig,
                   ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::
                       ReadOnlyAppConfigDeleter>
-    ro_app_state{nullptr, ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::ReadOnlyAppConfigDeleter{}};
+      ro_app_state{nullptr, ::ec_prv::url_shortener::app_config::
+                                ReadOnlyAppConfig::ReadOnlyAppConfigDeleter{}};
   if (!FLAGS_config_file.empty()) {
     const auto config_file_path = std::filesystem::path{FLAGS_config_file};
-    CHECK(std::filesystem::exists(config_file_path)) << "Config file at \"" << FLAGS_config_file << "\" does not exist";
-    ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::new_from_yaml(config_file_path);
+    CHECK(std::filesystem::exists(config_file_path))
+        << "Config file at \"" << FLAGS_config_file << "\" does not exist";
+    ro_app_state =
+        ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::new_from_yaml(
+            config_file_path);
   } else {
-      ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::
-          new_from_env();
+    ro_app_state =
+        ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::new_from_env();
   }
 
   std::unique_ptr<::ec_prv::url_shortener::url_shortening::UrlShorteningConfig>
@@ -170,7 +174,8 @@ int main(int argc, char *argv[]) {
   }
 
   std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db =
-      ::ec_prv::url_shortener::db::ShortenedUrlsDatabase::open(ro_app_state->urls_db_path);
+      ::ec_prv::url_shortener::db::ShortenedUrlsDatabase::open(
+          ro_app_state->urls_db_path);
 
   const char *highwayhash_key_inp =
       std::getenv("EC_PRV_URL_SHORTENER__HIGHWAYHASH_KEY");
