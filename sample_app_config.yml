@@ -1,6 +1,8 @@
 #url_shortener_base_url: "https://prv.ec"
 public_base_url: http://0.0.0.0:50028
 
+urls_db_path: urls.db
+
 web_server_port: 50028
 
 frontend_doc_root:
