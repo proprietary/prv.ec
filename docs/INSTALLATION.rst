@@ -46,7 +46,8 @@ Install common dependencies using package manager (Debian 12 or Ubuntu 22.04 LTS
        libfmt-dev \
        libgtest-dev \
        libgmock-dev \
-       libzstd-dev
+       libzstd-dev \
+       gperf
 
 Then build and install ``folly``:
 
