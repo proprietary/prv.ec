@@ -9,13 +9,12 @@ For simplicity, the instructions herein will only be for Debian 12 or Ubuntu 22.
 Dependencies list
 -----------------
 
-- libevent
-- libsodium
-- fizz
-- wangle
-- folly
+At a high-level, this application uses the following libraries:
+
 - proxygen
 - RocksDB
+- folly
+
 
 Building from source
 --------------------
@@ -26,7 +25,6 @@ Install common dependencies using package manager (Debian 12 or Ubuntu 22.04 LTS
 	  
    sudo apt-get install \
        g++ \
-       cmake \
        libboost-all-dev \
        libevent-dev \
        libdouble-conversion-dev \
@@ -48,6 +46,14 @@ Install common dependencies using package manager (Debian 12 or Ubuntu 22.04 LTS
        libgmock-dev \
        libzstd-dev \
        gperf
+
+`Download and install the latest CMake <https://cmake.org/download/>`_ (minimum >= 3.27) (skip this if running ``$ cmake --version`` shows a version >= 3.27):
+
+.. code:: bash
+   cd /tmp
+   sudo apt remove --purge cmake # Remove existing CMake installation
+   curl -LO https://github.com/Kitware/CMake/releases/download/v3.27.6/cmake-3.27.6-linux-x86_64.tar.gz
+   sudo tar -C /usr/local --strip-components=1 -xzf cmake-3.27.6-linux-x86_64.tar.gz
 
 Then build and install ``folly``:
 
