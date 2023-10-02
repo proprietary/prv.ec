@@ -50,6 +50,7 @@ Install common dependencies using package manager (Debian 12 or Ubuntu 22.04 LTS
 `Download and install the latest CMake <https://cmake.org/download/>`_ (minimum >= 3.27) (skip this if running ``$ cmake --version`` shows a version >= 3.27):
 
 .. code:: bash
+
    cd /tmp
    sudo apt remove --purge cmake # Remove existing CMake installation
    curl -LO https://github.com/Kitware/CMake/releases/download/v3.27.6/cmake-3.27.6-linux-x86_64.tar.gz
@@ -90,6 +91,7 @@ Then build and install ``wangle``:
 Then build and install ``rocksdb``:
 
 .. code::
+
    cd ../..
    git clone https://github.com/facebook/rocksdb
    mkdir rocksdb/build_ && cd rocksdb/build_
@@ -97,16 +99,28 @@ Then build and install ``rocksdb``:
    make -j $(nproc)
    sudo make install
 
-Then build this application:
+Build this app
+~~~~~~~~~~~~~~
 
-.. code:: bash
-	  
+Build the ``frontend/`` (a Next.js static site) separately.
+
+Note: Node.js and a node package manager such as ``yarn``, ``npm`` or ``pnpm`` needed. (Recommended: `pnpm <https://pnpm.io/>`_)
+
+.. code::
+
+   cd <wherever you cloned this git repository to>
    cd frontend/
    export NEXT_PUBLIC__EC_PRV_URL_SHORTENER__RECAPTCHA_V2_SITE_KEY=<recaptcha V2 site key (shown to public, not your secret key!)>
    export NEXT_PUBLIC__EC_PRV_URL_SHORTENER__BASE_URL=https://prv.ec # change to your domain/brand
    export NEXT_PUBLIC__EC_PRV_URL_SHORTENER__API_BASE_URL=https://prv.ec # change to your domain/brand
    npm run build
-   cd ../
+
+
+Then build the C++ server software:
+
+.. code:: bash
+
+   cd <wherever you cloned this git repository to>
    mkdir build_ && cd build_
    cmake -DCMAKE_BUILD_TYPE=Release ..
    make -j $(nproc)
