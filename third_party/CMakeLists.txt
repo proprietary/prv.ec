@@ -1,7 +1,6 @@
 cmake_minimum_required(VERSION 3.27)
 
 include(FetchContent)
-# include(ExternalProject)
 
 add_subdirectory(highwayhash)
 
@@ -11,3 +10,9 @@ FetchContent_Declare(
   URL_HASH SHA256=d0155e4c7d90cd4b50e0797dc183c33d2efff6411188876985cd2112aa400702
 )
 FetchContent_MakeAvailable(proxygen)
+
+FetchContent_Declare(folly
+  URL https://github.com/facebook/folly/releases/download/v2023.10.02.00/folly-v2023.10.02.00.zip
+  URL_HASH SHA256=94ae19de64f7d74f7f3ecff40b7a2cb70d074d95089e2bb4790ca95fb1c8610b
+)
+FetchContent_MakeAvailable(folly)
