@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.27)
 
 project(url_shortener VERSION 1.0.0 DESCRIPTION "prv.ec url shortener" LANGUAGES CXX)
 
+set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
+
 list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_LIST_DIR}/cmake")
 
 find_package(Threads)
