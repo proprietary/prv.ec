@@ -39,7 +39,7 @@ struct ReadOnlyAppConfig {
   // This is the base URL for your URL shortening service, after which
   // the shortened URL slug is appended. For example,
   // "https://prv.ec/" or "https://bit.ly/"
-  const char *url_shortener_service_base_url{"https://prv.ec/"};
+  std::string url_shortener_service_base_url{"https://prv.ec/"};
 
   // host to bind web server to, e.g., localhost, 0.0.0.0
   std::string web_server_bind_host{"127.0.0.1"};
@@ -70,6 +70,8 @@ struct ReadOnlyAppConfig {
 
   [[nodiscard]] static auto new_from_env()
       -> std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter>;
+
+  [[nodiscard]] static auto new_from_yaml(std::filesystem::path yaml_filename) -> std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter>;
 };
 
 } // namespace app_config

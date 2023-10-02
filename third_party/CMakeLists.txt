@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.18)
 
 include(FetchContent)
 
@@ -16,3 +16,11 @@ FetchContent_Declare(folly
   URL_HASH SHA256=94ae19de64f7d74f7f3ecff40b7a2cb70d074d95089e2bb4790ca95fb1c8610b
 )
 FetchContent_MakeAvailable(folly)
+
+FetchContent_Declare(
+  yaml-cpp
+  GIT_REPOSITORY https://github.com/jbeder/yaml-cpp.git
+  GIT_TAG 0.8.0
+)
+FetchContent_MakeAvailable(yaml-cpp)
+  

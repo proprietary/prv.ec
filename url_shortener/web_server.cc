@@ -25,13 +25,11 @@
 #include "static_handler.h"
 #include "url_shortener_handler.h"
 
-DEFINE_int32(http_port, 11000, "Port to listen on with HTTP protocol");
-DEFINE_int32(spdy_port, 11001, "Port to listen on with SPDY protocol");
 DEFINE_int32(h2_port, 11002, "Port to listen on with HTTP/2 protocol");
-DEFINE_string(ip, "localhost", "IP/Hostname to bind to");
 DEFINE_int32(threads, 1,
              "Number of threads to listen on. Numbers <= 0 "
              "will use the number of cores on this machine. Default 1.");
+DEFINE_string(config_file, "", "Path to configuration file");
 
 namespace {
 
@@ -133,13 +131,22 @@ int main(int argc, char *argv[]) {
   // google::InitGoogleLogging(argv[0]);
   // google::InstallFailureSignalHandler();
 
+  LOG(INFO) << "Starting up url shortener...";
+
   folly::Init _folly_init{&argc, &argv, false};
 
   std::unique_ptr<::ec_prv::url_shortener::app_config::ReadOnlyAppConfig,
                   ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::
                       ReadOnlyAppConfigDeleter>
+    ro_app_state{nullptr, ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::ReadOnlyAppConfigDeleter{}};
+  if (!FLAGS_config_file.empty()) {
+    const auto config_file_path = std::filesystem::path{FLAGS_config_file};
+    CHECK(std::filesystem::exists(config_file_path)) << "Config file at \"" << FLAGS_config_file << "\" does not exist";
+    ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::new_from_yaml(config_file_path);
+  } else {
       ro_app_state = ::ec_prv::url_shortener::app_config::ReadOnlyAppConfig::
           new_from_env();
+  }
 
   std::unique_ptr<::ec_prv::url_shortener::url_shortening::UrlShorteningConfig>
       url_shortening_svc = std::make_unique<
@@ -151,9 +158,6 @@ int main(int argc, char *argv[]) {
       {folly::SocketAddress(ro_app_state->web_server_bind_host,
                             ro_app_state->web_server_port, true),
        proxygen::HTTPServer::Protocol::HTTP},
-      {folly::SocketAddress(ro_app_state->web_server_bind_host, FLAGS_spdy_port,
-                            true),
-       proxygen::HTTPServer::Protocol::SPDY},
       {folly::SocketAddress(ro_app_state->web_server_bind_host, FLAGS_h2_port,
                             true),
        proxygen::HTTPServer::Protocol::HTTP2},

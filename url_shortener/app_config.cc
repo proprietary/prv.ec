@@ -8,6 +8,7 @@
 #include <glog/logging.h>
 #include <stdexcept>
 #include <string>
+#include <yaml-cpp/yaml.h>
 
 namespace ec_prv {
 namespace url_shortener {
@@ -56,6 +57,51 @@ void ReadOnlyAppConfig::ReadOnlyAppConfigDeleter::operator()(
   if (that->highwayhash_key != nullptr) {
     delete that->highwayhash_key;
   }
+}
+
+auto ReadOnlyAppConfig::new_from_yaml(std::filesystem::path yaml_filename) -> std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter> {
+  std::unique_ptr<ReadOnlyAppConfig, ReadOnlyAppConfigDeleter> dst{new ReadOnlyAppConfig, ReadOnlyAppConfigDeleter{}};
+
+  YAML::Node config = YAML::LoadFile(yaml_filename.c_str());
+
+  const uint16_t web_server_port = config["web_server_port"].as<uint16_t>();
+  dst->web_server_port = web_server_port;
+  const std::string static_file_doc_root = config["static_file_doc_root"].as<std::string>();
+  dst->static_file_doc_root = static_file_doc_root;
+  dst->frontend_doc_root = config["frontend_doc_root"].as<std::string>();
+  dst->ip_rate_limiter_seconds_ttl = config["rate_limiter_ttl_seconds"].as<uint32_t>();
+  dst->web_server_bind_host = config["web_server_bind_host"].as<std::string>();
+  dst->url_shortener_service_base_url = config["public_base_url"].as<std::string>();
+  dst->slug_length = config["slug_length"].as<uint8_t>();
+  dst->alphabet = config["alphabet"].as<std::string>();
+  dst->rate_limit_per_minute = config["rate_limit_per_minute"].as<uint32_t>();
+  dst->trusted_certificates_path = config["trusted_certificates_path"].as<std::string>();
+  auto hk = config["url_generator_salt"].as<std::string>();
+  dst->highwayhash_key = create_highwayhash_key(hk);
+
+  auto cf_ip_ranges = config["known_cloudflare_ip_ranges"].as<std::vector<std::string>>();
+  for (const auto &ip_range : cf_ip_ranges) {
+    auto res = folly::IPAddress::tryCreateNetwork(ip_range);
+    if (res.hasValue()) {
+      dst->cf_cidrs.push_back(res.value());
+    } else {
+      LOG(ERROR) << "Unable to parse IP CIDR supplied in configuration as a Cloudflare IP range: " << ip_range << std::endl
+		 << "This must be a CIDR like \"2400:cb00::/32\" or \"172.64.0.0/13\".";
+    }
+  }
+
+  auto rp_ip_ranges = config["known_reverse_proxy_ip_ranges"].as<std::vector<std::string>>();
+  for (const auto &ip_range : rp_ip_ranges) {
+    auto res = folly::IPAddress::tryCreateNetwork(ip_range);
+    if (res.hasValue()) {
+      dst->reverse_proxy_cidrs.push_back(res.value());
+    } else {
+      LOG(ERROR) << "Unable to parse IP CIDR supplied in configuration as a reverse proxy IP range: " << ip_range << std::endl
+		 << "This must be a CIDR like \"2400:cb00::/32\" or \"172.64.0.0/13\".";
+    }
+  }
+
+  return dst;
 }
 
 auto ReadOnlyAppConfig::new_from_env()

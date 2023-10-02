@@ -65,3 +65,5 @@ nextjs-dist
 /.ijwb/
 /.aswb/
 /.clwb/
+
+app_config.yml

@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.27)
+cmake_minimum_required(VERSION 3.18)
 
 project(url_shortener VERSION 1.0.0 DESCRIPTION "prv.ec url shortener" LANGUAGES CXX)
 
@@ -16,7 +16,7 @@ add_subdirectory(third_party)
 add_library(app_config url_shortener/app_config.h url_shortener/app_config.cc)
 target_sources(app_config PUBLIC FILE_SET hdrs TYPE HEADERS FILES url_shortener/app_config.h)
 target_compile_features(app_config PUBLIC cxx_std_20)
-target_link_libraries(app_config PUBLIC folly)
+target_link_libraries(app_config PUBLIC folly yaml-cpp::yaml-cpp)
 
 add_library(url_shortening)
 target_sources(url_shortening PUBLIC url_shortener/url_shortening.cc url_shortener/db.cc url_shortener/db.h)
