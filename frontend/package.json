@@ -23,7 +23,7 @@
   },
   "devDependencies": {
     "@types/react-google-recaptcha": "^2.1.5",
-    "daisyui": "^3.6.3",
+    "daisyui": "^3.8.3",
     "framer-motion": "^10.16.1"
   }
 }

@@ -1,8 +1,14 @@
 ====================
-ec_prv_url_shortener
+prv.ec
 ====================
 
 URL shortening service written in C++
+
+Try it out!
+-----------
+
+Live at 👉 `https://prv.ec <https://prv.ec/>`_ 👈
+
 
 Design goals
 ------------
@@ -33,11 +39,7 @@ Use the latest gcc or clang. C++20 is a must. See `docs/INSTALLATION.rst <docs/I
 - `gtest <https://github.com/google/googletest>`_ - Google Teset
 - `glog <https://github.com/google/glog>`_ - Google Logging
 
-A frontend built with `Next.js <https://nextjs.org/>`_ is included in `frontend/`. Building the frontend requires npm and node. Build it with::
-
-  $ npm install
-  $ npx next build
-
+A frontend built with `Next.js <https://nextjs.org/>`_ is included in `frontend/`.
 
 
 License
