@@ -66,9 +66,11 @@ private:
   explicit FrontendHandler(
       const folly::F14NodeMap<std::string, std::vector<uint8_t>>
           *const frontend_dir_cache,
-      const std::vector<uint8_t> *const prefound_data);
+      const std::vector<uint8_t> *const prefound_data, std::string_view prefound_mime_type_str);
 
   const std::vector<uint8_t> *const prefound_data_{nullptr};
+
+  std::string_view prefound_mime_type_str_;
 };
 } // namespace web
 } // namespace url_shortener
