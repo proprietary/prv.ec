@@ -23,7 +23,7 @@ This is targeted and tested on amd64 Linux only, for now, though it should not b
 Build Dependencies
 ==================
 
-Use the latest gcc or clang. C++20 is a must.
+Use the latest gcc or clang. C++20 is a must. See `docs/INSTALLATION.rst <docs/INSTALLATION.rst>`_ for detailed build instructions.
 
 - `RocksDB <https://github.com/facebook/rocksdb>`_ - an on-disk embedded key-value database maintained by Meta/FB
 - `proxygen <https://github.com/facebook/proxygen>`_ - robust C++ web server maintained by Meta/FB
