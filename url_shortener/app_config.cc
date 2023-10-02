@@ -50,6 +50,19 @@ auto split_csv_string(std::string_view csv_string,
   return dst;
 }
 
+auto can_write_to_dir(std::filesystem::path directory) -> bool {
+  try {
+    std::filesystem::file_status status = std::filesystem::status(directory);
+    if (std::filesystem::exists(status) && std::filesystem::is_directory(status) && (status.permissions() & std::filesystem::perms::owner_write) != std::filesystem::perms::none) {
+      return true;
+    }
+    return false;
+  } catch (const std::filesystem::filesystem_error& e) {
+    LOG(ERROR) << "Error checking directory permissions: " << e.what();
+  }
+  return false;
+}
+
 } // namespace
 
 void ReadOnlyAppConfig::ReadOnlyAppConfigDeleter::operator()(
@@ -67,6 +80,10 @@ auto ReadOnlyAppConfig::new_from_yaml(std::filesystem::path yaml_filename) -> st
   const uint16_t web_server_port = config["web_server_port"].as<uint16_t>();
   dst->web_server_port = web_server_port;
   const std::string static_file_doc_root = config["static_file_doc_root"].as<std::string>();
+  std::filesystem::path urls_db_path = config["urls_db_path"].as<std::string>();
+  CHECK(can_write_to_dir(urls_db_path.parent_path())) << "Fix the configuration entry \"urls_db_path\". Cannot write to directory \""
+							   << urls_db_path.parent_path() << "\"";
+  dst->urls_db_path = std::move(urls_db_path);
   dst->static_file_doc_root = static_file_doc_root;
   dst->frontend_doc_root = config["frontend_doc_root"].as<std::string>();
   dst->web_server_bind_host = config["web_server_bind_host"].as<std::string>();

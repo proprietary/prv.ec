@@ -19,7 +19,7 @@ namespace url_shortener {
 namespace db {
 
 namespace {
-auto shortened_urls_database_path() -> std::filesystem::path {
+auto shortened_urls_database_path_env() -> std::filesystem::path {
   const char *s =
       std::getenv("EC_PRV_URL_SHORTENER__SHORTENED_URLS_DATABASE_PATH");
   if (s == nullptr) {
@@ -36,8 +36,7 @@ auto shortened_urls_database_path() -> std::filesystem::path {
 }
 } // namespace
 
-auto ShortenedUrlsDatabase::open() -> std::shared_ptr<ShortenedUrlsDatabase> {
-  auto db_path = shortened_urls_database_path();
+auto ShortenedUrlsDatabase::open(std::filesystem::path db_path) -> std::shared_ptr<ShortenedUrlsDatabase> {
   rocksdb::DB *db;
   rocksdb::Options options;
   options.create_if_missing = true;

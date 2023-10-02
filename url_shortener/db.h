@@ -40,7 +40,7 @@ public:
   ShortenedUrlsDatabase(const ShortenedUrlsDatabase &) = delete;
   ShortenedUrlsDatabase(ShortenedUrlsDatabase &&) = delete;
   ~ShortenedUrlsDatabase();
-  [[nodiscard]] static auto open() -> std::shared_ptr<ShortenedUrlsDatabase>;
+  [[nodiscard]] static auto open(std::filesystem::path) -> std::shared_ptr<ShortenedUrlsDatabase>;
   auto put(std::string_view shortened_url, std::string_view full_url) noexcept
       -> std::optional<UrlShorteningDbError>;
   auto get(std::string_view shortened_url) noexcept

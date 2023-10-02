@@ -16,6 +16,8 @@ struct ReadOnlyAppConfig {
   // Random 256-bit key with which to hash input long URLs into short slugs.
   const uint64_t *highwayhash_key{nullptr};
 
+  std::filesystem::path urls_db_path;
+
   uint16_t grpc_service_port{50051};
 
   uint16_t web_server_port{60022};

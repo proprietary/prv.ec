@@ -170,7 +170,7 @@ int main(int argc, char *argv[]) {
   }
 
   std::shared_ptr<::ec_prv::url_shortener::db::ShortenedUrlsDatabase> db =
-      ::ec_prv::url_shortener::db::ShortenedUrlsDatabase::open();
+      ::ec_prv::url_shortener::db::ShortenedUrlsDatabase::open(ro_app_state->urls_db_path);
 
   const char *highwayhash_key_inp =
       std::getenv("EC_PRV_URL_SHORTENER__HIGHWAYHASH_KEY");
