@@ -1,10 +1,8 @@
-'use client';
-
 import React from 'react';
 import ReCAPTCHA from 'react-google-recaptcha';
 
-const urlShortenerBaseUrl = process.env.NEXT_PUBLIC_EC_PRV_URL_SHORTENER__BASE_URL;
-const apiBaseUrl = process.env.NEXT_PUBLIC_EC_PRV_URL_SHORTENER__API_BASE_URL;
+const urlShortenerBaseUrl = process.env.NEXT_PUBLIC__EC_PRV_URL_SHORTENER__BASE_URL;
+const apiBaseUrl = process.env.NEXT_PUBLIC__EC_PRV_URL_SHORTENER__API_BASE_URL;
 
 class UrlShortenerApiError extends Error {
     private statusCode: number;
@@ -91,9 +89,9 @@ export default function ShortenUrlBox() {
             setTimeout(() => { setDidCopy(false) }, 2000);
         }
     }
-    const recaptchaV2SiteKey = process.env.NEXT_PUBLIC_EC_PRV_URL_SHORTENER_RECAPTCHA_V2_SITE_KEY;
-    if (recaptchaV2SiteKey == null || recaptchaV2SiteKey.length == 0) {
-        return (<>Missing reCaptcha V2 site key</>)
+    const recaptchaV2SiteKey = process.env.NEXT_PUBLIC__EC_PRV_URL_SHORTENER__RECAPTCHA_V2_SITE_KEY;
+    if (recaptchaV2SiteKey == null || recaptchaV2SiteKey.length === 0) {
+        return (<>Missing reCaptcha V2 site key!</>)
     };
     return (
         <>
