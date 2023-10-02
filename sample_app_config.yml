@@ -1,4 +1,4 @@
-#url_shortener_base_url: "https://prv.ec"
+#public_base_url: "https://prv.ec"
 public_base_url: http://0.0.0.0:50028
 
 urls_db_path: urls.db

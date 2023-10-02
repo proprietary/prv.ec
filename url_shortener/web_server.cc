@@ -177,18 +177,6 @@ int main(int argc, char *argv[]) {
       ::ec_prv::url_shortener::db::ShortenedUrlsDatabase::open(
           ro_app_state->urls_db_path);
 
-  const char *highwayhash_key_inp =
-      std::getenv("EC_PRV_URL_SHORTENER__HIGHWAYHASH_KEY");
-  CHECK(nullptr != highwayhash_key_inp)
-      << "missing environment variable for highwayhash key";
-  if (nullptr == highwayhash_key_inp) {
-    std::cerr << "Missing highwayhash key\n";
-    return 1;
-  }
-  const uint64_t *highwayhash_key =
-      ::ec_prv::url_shortener::url_shortening::create_highwayhash_key(
-          highwayhash_key_inp);
-
   // build cache of frontend directory files
   std::unique_ptr<folly::F14NodeMap<std::string, std::vector<uint8_t>>>
       frontend_dir_cache =
