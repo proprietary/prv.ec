@@ -44,7 +44,6 @@ Install common dependencies using package manager (Debian 12 or Ubuntu 22.04 LTS
        pkg-config \
        libsodium-dev \
        libfmt-dev \
-       librocksdb-dev \
        libgtest-dev \
        libgmock-dev \
        libzstd-dev
@@ -78,6 +77,16 @@ Then build and install ``wangle``:
    git clone https://github.com/facebook/wangle
    mkdir wangle/build_ && cd wangle/build_
    cmake ../wangle
+   make -j $(nproc)
+   sudo make install
+
+Then build and install ``rocksdb``:
+
+.. code::
+   cd ../..
+   git clone https://github.com/facebook/rocksdb
+   mkdir rocksdb/build_ && cd rocksdb/build_
+   cmake ..
    make -j $(nproc)
    sudo make install
 
