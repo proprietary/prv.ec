@@ -15,6 +15,11 @@ find_package(Folly REQUIRED)
 
 add_subdirectory(third_party)
 
+add_library(mime_type mime_type/mime_type.h mime_type/mime_type.cc)
+target_sources(mime_type PUBLIC mime_type/mime_type.h PRIVATE mime_type/mime_type.h mime_type/mime_type.cc)
+target_include_directories(mime_type PRIVATE ${CMAKE_CURRENT_LIST_DIR})
+target_compile_features(mime_type PUBLIC cxx_std_20)
+
 add_library(app_config url_shortener/app_config.h url_shortener/app_config.cc)
 target_sources(app_config PUBLIC FILE_SET hdrs TYPE HEADERS FILES url_shortener/app_config.h)
 target_compile_features(app_config PUBLIC cxx_std_20)
@@ -27,4 +32,4 @@ target_link_libraries(url_shortening PUBLIC app_config highwayhash Folly::folly 
 
 add_executable(web_server)
 target_sources(web_server PUBLIC url_shortener/web_server.cc url_shortener/url_shortener_handler.h url_shortener/url_shortener_handler.cc url_shortener/static_handler.h url_shortener/static_handler.cc url_shortener/make_url_request_handler.h url_shortener/make_url_request_handler.cc url_shortener/frontend_handler.h url_shortener/frontend_handler.cc url_shortener/ddos_protection.h url_shortener/ddos_protection.cc)
-target_link_libraries(web_server PUBLIC proxygen proxygenhttpserver Folly::folly url_shortening app_config)
+target_link_libraries(web_server PUBLIC proxygen proxygenhttpserver Folly::folly mime_type url_shortening app_config)
