@@ -27,6 +27,8 @@ const makeRequest = async (userCaptchaResponse: string, longUrl: string): Promis
     }
 }
 
+const validUrl = new RegExp(/^(ftp|http|https):\/\/[^ "]+$/);
+
 export default function ShortenUrlBox() {
     const [urlToShorten, setUrlToShorten] = React.useState<string>('');
     const [recaptchaUserResponse, setRecaptchaUserResponse] = React.useState<string>('');
@@ -117,7 +119,7 @@ export default function ShortenUrlBox() {
                         onChange={handleRecaptchaV2Change} />
                 </div>
                 {isLoading ? (<span className="loading loading-spinner loading-lg mx-auto my-4"></span>) : (<button
-                    disabled={!(recaptchaUserResponse.length > 0 && urlToShorten.length > 0)}
+                    disabled={!(recaptchaUserResponse.length > 0 && urlToShorten.length > 0 && validUrl.test(urlToShorten.trim()))}
                     className="btn btn-primary btn-wide my-4 mx-auto"
                     type="submit">Shorten URL</button>)}
                 {errored && (<div className="alert alert-error">
